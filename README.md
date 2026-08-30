@@ -10,18 +10,18 @@
 
 **Your gaze is an input.**
 
-Fovea is a planned open-source gaze input engine that turns ordinary cameras into a new way to interact with computers. Look to point. Dwell or blink to select. Focus to highlight. Combine gaze with a deliberate gesture to drag, scroll, navigate, and control an interface without reaching for a mouse.
+Fovea is an open-source gaze input engine that turns ordinary cameras into a new way to interact with computers. Look to point. Dwell or blink to select. Focus to highlight. Combine gaze with a deliberate gesture to drag, scroll, navigate, and control an interface without reaching for a mouse.
 
 The first target is desktop control using a built-in webcam. The longer-term goal is a portable library that any Wega app—or any other application—can embed to add gaze as an input modality alongside touch, keyboard, pointer, gesture, and voice.
 
 > [!NOTE]
-> Fovea is currently a product vision and research plan. No tracking or control code has been implemented, and no code from the referenced projects has been copied into this repository.
+> Fovea is at the scaffold stage. The repository contains the Python package, typed event contract, and development configuration. Camera capture, landmark inference, calibration, and operating-system control are not implemented yet, and no code from the referenced projects has been copied.
 
 ## Why Fovea
 
-Most software assumes that intent arrives through a keyboard, mouse, or touchscreen. But people already communicate attention continuously through their eyes. Fovea aims to turn that attention into a private, responsive, and reusable input signal using cameras people already own.
+Most software assumes that intent arrives through a keyboard, mouse, or touchscreen. But people already communicate attention continuously through their eyes. Fovea turns that attention into a private, responsive, and reusable input signal using cameras people already own.
 
-This is bigger than an eye-controlled mouse. Fovea should become:
+This is bigger than an eye-controlled mouse. Fovea is designed as:
 
 - **A desktop controller** — point, click, highlight, drag, scroll, and switch focus with gaze-assisted interactions.
 - **An accessibility tool** — offer a hands-free path for people who cannot comfortably use conventional input devices.
@@ -32,9 +32,9 @@ This is bigger than an eye-controlled mouse. Fovea should become:
 
 ## Interaction model
 
-Gaze is excellent for expressing *where*, but an eye movement alone should not always mean *act*. Fovea should separate targeting from confirmation so natural looking does not produce accidental clicks—the classic “Midas touch” problem.
+Gaze is excellent for expressing *where*, but an eye movement alone does not always mean *act*. Fovea separates targeting from confirmation so natural looking does not produce accidental clicks—the classic “Midas touch” problem.
 
-The initial interaction vocabulary should include:
+The interaction vocabulary includes:
 
 - **Point** — map calibrated gaze to a stabilized screen position.
 - **Focus** — visually highlight the element currently under sustained gaze.
@@ -43,11 +43,11 @@ The initial interaction vocabulary should include:
 - **Scroll** — use configurable gaze zones or gaze plus a modifier.
 - **Pause** — instantly disarm control with a hotkey, gesture, voice command, or loss of tracking.
 
-Every action should be configurable. No user should be forced to blink, dwell, or hold their eyes in a way that causes fatigue or excludes their particular movement patterns.
+Every action is configurable by design. No user is forced to blink, dwell, or hold their eyes in a way that causes fatigue or excludes their particular movement patterns.
 
 ## Gaze + gesture
 
-The most powerful Fovea interaction may be the combination of gaze and ordinary hand gestures captured by the same camera. Gaze provides fast, precise targeting; a deliberate hand gesture provides confirmation and manipulation.
+A core Fovea interaction combines gaze and ordinary hand gestures captured by the same camera. Gaze provides fast, precise targeting; a deliberate hand gesture provides confirmation and manipulation.
 
 For example:
 
@@ -65,24 +65,24 @@ Other possible combinations include:
 - look at a control and use a small gesture to adjust its value
 - use gaze to target while voice names the action and a gesture confirms it
 
-The fusion layer should behave as an explicit state machine:
+The fusion layer follows an explicit state machine:
 
 ```text
 idle → target primed → grabbed → manipulating → released
   └──────────────────── cancel / tracking lost ──────────┘
 ```
 
-Fovea must show which target is primed before a gesture can affect it. Gestures should operate only on that target, require sufficient gaze and hand confidence, and stop immediately when either signal is lost. Natural hand movement must not become a command unless multimodal control is visibly armed.
+Fovea shows which target is primed before a gesture can affect it. Gestures operate only on that target, require sufficient gaze and hand confidence, and stop immediately when either signal is lost. Natural hand movement does not become a command unless multimodal control is visibly armed.
 
 ## Product surfaces
 
-Fovea should eventually ship as three layers built on the same engine:
+Fovea is organized as three layers built on the same engine:
 
 1. **Fovea Controller** — a reference desktop application that can control the operating-system pointer.
 2. **Fovea Engine** — the camera, landmark, calibration, gaze-estimation, filtering, and intent pipeline.
 3. **Fovea SDK** — a small API and platform bindings that applications can embed directly.
 
-On mobile, operating-system restrictions may limit global cursor control. The first mobile integration may therefore be an SDK for gaze-aware experiences inside participating apps, with broader control explored where platform accessibility APIs permit it.
+On mobile, operating-system restrictions limit global cursor control. Fovea therefore begins with an SDK for gaze-aware experiences inside participating apps and adds broader control where platform accessibility APIs permit it.
 
 ## Architecture
 
@@ -107,9 +107,9 @@ Filtering, confidence, fixation, and intent engine
   └──► local diagnostics ─► calibration and performance feedback
 ```
 
-The core boundary is intentional: estimation should describe what the eyes are doing, while platform and application adapters decide what an event is allowed to control.
+The core boundary is intentional: estimation describes what the eyes are doing, while platform and application adapters decide what an event is allowed to control.
 
-An eventual SDK should expose concepts such as:
+The scaffold exposes an initial platform-neutral event model:
 
 ```text
 GazePoint(x, y, confidence, timestamp)
@@ -120,13 +120,28 @@ Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
 ```
 
-These names and shapes are illustrative, not a committed API.
+These immutable, typed events form the first public library boundary. Semantic versioning governs their evolution.
 
-## Technical direction
+## Tech stack
 
-The first research spike will likely use Python, OpenCV, and an on-device landmark backend such as MediaPipe because they make camera and calibration experiments fast. MediaPipe can provide face, eye, and iris landmarks; a separate calibrated estimator is still required to infer where on a screen someone is looking.
+Fovea uses a library-first Python stack for fast vision research and a clean path into other applications.
 
-The implementation should preserve replaceable boundaries for:
+| Layer | Choice |
+| --- | --- |
+| Runtime | Python 3.12 |
+| Packaging | `pyproject.toml`, `src/` layout, and `uv` or standard `venv`/`pip` |
+| Camera and frames | OpenCV |
+| Face, eye, iris, and hand landmarks | MediaPipe Tasks |
+| Calibration, transforms, and filtering | NumPy |
+| Library boundary | Frozen dataclasses, enums, and typed protocols |
+| Desktop control | Native platform adapters behind the Fovea event API |
+| Tests | pytest |
+| Quality | Ruff and mypy in strict mode |
+| Cloud | None required |
+
+MediaPipe provides on-device face, eye, iris, and hand landmarks. A separate calibrated estimator maps those observations to a screen position; iris landmarks alone do not reveal where someone is looking.
+
+The architecture keeps replaceable boundaries for:
 
 - camera and frame capture
 - face, eye, and iris landmark models
@@ -138,11 +153,44 @@ The implementation should preserve replaceable boundaries for:
 - operating-system control adapters
 - language and framework bindings
 
-A successful prototype should later be reduced to a portable core with a stable event API. Python can remain the research and reference layer while native or FFI-backed runtimes are evaluated for low-latency desktop and mobile embedding. No cloud backend should be required for core tracking.
+Python is the research implementation and reference SDK. The stable event API keeps camera, model, and operating-system details out of consuming applications, while native or FFI-backed runtimes can be added for lower-latency desktop and mobile embedding. Core tracking requires no cloud backend.
+
+## Development
+
+With `uv`:
+
+```bash
+uv sync --extra dev
+uv run pytest
+uv run ruff check .
+uv run mypy
+```
+
+With the standard Python toolchain:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
+pytest
+ruff check .
+mypy
+```
+
+Current package layout:
+
+```text
+src/fovea/
+├── events.py       # immutable gaze, blink, gesture, and tracking events
+├── interfaces.py   # event producer and consumer protocols
+└── py.typed        # typed-package marker
+tests/
+└── test_events.py
+```
 
 ## Accuracy and reliability
 
-Fovea must measure more than whether the pointer moves. Evaluation should cover:
+Fovea measures more than whether the pointer moves. Evaluation covers:
 
 - calibration time and repeatability
 - angular and on-screen point error
@@ -154,11 +202,11 @@ Fovea must measure more than whether the pointer moves. Evaluation should cover:
 - different cameras, screen sizes, and multi-monitor layouts
 - false activations and recovery after tracking loss
 
-The UI must communicate uncertainty. If confidence falls below a safe threshold, Fovea should freeze or disarm actions instead of guessing.
+The UI communicates uncertainty. If confidence falls below a safe threshold, Fovea freezes or disarms actions instead of guessing.
 
 ## Privacy and safety
 
-An eye tracker observes a face continuously and can reveal sensitive behavioral signals. Fovea should adopt strict defaults:
+An eye tracker observes a face continuously and can reveal sensitive behavioral signals. Fovea adopts strict defaults:
 
 - process video locally and discard frames immediately after inference
 - never perform identity recognition
@@ -169,11 +217,11 @@ An eye tracker observes a face continuously and can reveal sensitive behavioral 
 - require explicit confirmation before destructive or security-sensitive actions
 - collect no analytics by default
 
-Applications embedding Fovea should receive the minimum event data they need—not unrestricted camera access.
+Applications embedding Fovea receive the minimum event data they need—not unrestricted camera access.
 
 ## Accessibility principles
 
-Fovea is intended to expand access, but it should not claim to be medical-grade or universally usable without evidence. Eye movement, fatigue, vision, motor control, and camera positioning vary widely. Development should involve people with relevant access needs early, support alternative confirmation methods, and always preserve another way to pause or exit.
+Fovea expands access without claiming to be medical-grade or universally usable without evidence. Eye movement, fatigue, vision, motor control, and camera positioning vary widely. Development involves people with relevant access needs early, supports alternative confirmation methods, and always preserves another way to pause or exit.
 
 ## Roadmap
 
@@ -201,7 +249,7 @@ The following projects are useful references for experiments and architecture:
 - [antoinelame/GazeTracking](https://github.com/antoinelame/GazeTracking) — a Python eye-tracking library with a simple integration surface.
 - [brownhci/WebGazer](https://github.com/brownhci/WebGazer) — browser-based webcam gaze estimation and calibration research.
 
-GitHub does not currently detect a license for the two repositories suggested as starters, so Fovea will use them as conceptual references only unless their authors clarify reuse terms. Before importing any code, model, dataset, or asset, contributors must verify its license compatibility, preserve required attribution, and document its origin. Generally useful fixes should be contributed back upstream when appropriate.
+GitHub does not currently detect a license for the two repositories suggested as starters, so Fovea uses them as conceptual references only unless their authors clarify reuse terms. Before importing any code, model, dataset, or asset, contributors must verify its license compatibility, preserve required attribution, and document its origin. Contributors send generally useful fixes back upstream when appropriate.
 
 ## Contributing
 
