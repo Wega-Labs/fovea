@@ -27,7 +27,7 @@ This is bigger than an eye-controlled mouse. Fovea should become:
 - **An accessibility tool** — offer a hands-free path for people who cannot comfortably use conventional input devices.
 - **An input engine** — expose calibrated gaze, fixation, dwell, blink, confidence, and tracking-state events.
 - **An embeddable SDK** — let apps add gaze-aware controls without implementing computer vision from scratch.
-- **A multimodal building block** — combine eyes for targeting with voice, keyboard, switch, gesture, or touch for confirmation.
+- **A multimodal building block** — use eyes to choose *what* and hands, voice, keyboard, switch, or touch to express *what to do with it*.
 - **A local-first system** — process camera frames on the device by default, without requiring a cloud account.
 
 ## Interaction model
@@ -45,6 +45,35 @@ The initial interaction vocabulary should include:
 
 Every action should be configurable. No user should be forced to blink, dwell, or hold their eyes in a way that causes fatigue or excludes their particular movement patterns.
 
+## Gaze + gesture
+
+The most powerful Fovea interaction may be the combination of gaze and ordinary hand gestures captured by the same camera. Gaze provides fast, precise targeting; a deliberate hand gesture provides confirmation and manipulation.
+
+For example:
+
+1. Look at a window, object, or text region to prime it as the target.
+2. Pinch your fingers to grab the visible target.
+3. Move your hand to drag it while your eyes are free to look ahead.
+4. Open your fingers to release it—or show an open palm to cancel.
+
+Other possible combinations include:
+
+- look at a window and sweep a hand to move it between displays
+- look at an image and pinch or rotate to resize it
+- look at a document and move a hand vertically to scroll
+- look at text, pinch to begin selection, and move a hand to extend the highlight
+- look at a control and use a small gesture to adjust its value
+- use gaze to target while voice names the action and a gesture confirms it
+
+The fusion layer should behave as an explicit state machine:
+
+```text
+idle → target primed → grabbed → manipulating → released
+  └──────────────────── cancel / tracking lost ──────────┘
+```
+
+Fovea must show which target is primed before a gesture can affect it. Gestures should operate only on that target, require sufficient gaze and hand confidence, and stop immediately when either signal is lost. Natural hand movement must not become a command unless multimodal control is visibly armed.
+
 ## Product surfaces
 
 Fovea should eventually ship as three layers built on the same engine:
@@ -60,13 +89,17 @@ On mobile, operating-system restrictions may limit global cursor control. The fi
 ```text
 Camera
   │ frames remain on device by default
-  ▼
-Face, eye, and iris landmarks
-  ▼
-Head-pose compensation + gaze estimator
-  ▼
-Per-user, per-screen calibration
-  ▼
+  │
+  ├──► face, eye, and iris landmarks
+  │          ▼
+  │    head-pose compensation + gaze estimator
+  │          ▼
+  │    per-user, per-screen calibration ──► gaze target
+  │
+  └──► hand landmarks + gesture recognizer ──► gesture state
+                                                    │
+                         gaze target + gesture state
+                                                    ▼
 Filtering, confidence, fixation, and intent engine
   │
   ├──► Fovea SDK events ──► application controls
@@ -82,6 +115,8 @@ An eventual SDK should expose concepts such as:
 GazePoint(x, y, confidence, timestamp)
 Fixation(center, duration, confidence)
 Blink(eye, duration)
+Gesture(kind, phase, confidence)
+Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
 ```
 
@@ -95,9 +130,11 @@ The implementation should preserve replaceable boundaries for:
 
 - camera and frame capture
 - face, eye, and iris landmark models
+- hand landmark and gesture-recognition models
 - gaze-estimation models
 - calibration strategies
 - temporal smoothing and fixation detection
+- multimodal gaze, gesture, voice, and switch fusion
 - operating-system control adapters
 - language and framework bindings
 
@@ -145,6 +182,9 @@ Fovea is intended to expand access, but it should not claim to be medical-grade 
 - [ ] Build guided multi-point calibration
 - [ ] Map gaze to a stabilized screen position with head-pose compensation
 - [ ] Prototype dwell, blink, and modifier-based selection
+- [ ] Validate real-time hand landmarks alongside eye tracking
+- [ ] Prototype gaze-to-target plus pinch-to-drag interaction
+- [ ] Define the multimodal gaze-and-gesture state machine
 - [ ] Add a permissioned desktop pointer adapter
 - [ ] Define the platform-neutral Fovea event API
 - [ ] Package the engine as an embeddable library
@@ -170,6 +210,7 @@ Fovea is in the research and design stage. Early contributions are especially us
 - gaze-estimation and calibration research
 - camera and landmark backends
 - signal filtering, fixation, dwell, and blink detection
+- hand tracking, gesture recognition, and multimodal fusion
 - desktop accessibility and pointer APIs
 - portable SDK and FFI design
 - privacy-preserving evaluation datasets
