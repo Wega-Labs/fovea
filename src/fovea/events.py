@@ -117,4 +117,21 @@ class TrackingState:
         _validate_confidence(self.confidence)
 
 
-type FoveaEvent = GazePoint | Fixation | Blink | Gesture | Manipulation | TrackingState
+@dataclass(frozen=True, slots=True)
+class CalibrationCue:
+    """The calibration target the user should look at right now."""
+
+    label: str
+    x: float
+    y: float
+    index: int
+    total: int
+    samples: int
+    needed: int
+    instruction: str
+    timestamp_ns: int
+
+
+type FoveaEvent = (
+    GazePoint | Fixation | Blink | Gesture | Manipulation | TrackingState | CalibrationCue
+)

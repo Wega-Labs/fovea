@@ -120,6 +120,7 @@ Blink(eye, duration)
 Gesture(kind, phase, confidence)
 Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
+CalibrationCue(label, x, y, index, total, instruction)
 ```
 
 These immutable, typed events form the first public library boundary. Semantic versioning governs their evolution.
@@ -164,6 +165,7 @@ With `uv`:
 ```bash
 uv sync --extra dev
 uv run pytest
+uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 ```
@@ -175,6 +177,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 pytest
+ruff format --check .
 ruff check .
 mypy
 ```
@@ -191,6 +194,8 @@ src/fovea/
 │   ├── landmarks.py    # MediaPipe FaceLandmarker adapter
 │   ├── features.py     # iris + head-pose gaze features
 │   ├── calibration.py  # 10-point ridge calibration
+│   ├── calibration_view.py  # on-screen calibration targets
+│   ├── model.py        # pinned FaceLandmarker URL + SHA-256
 │   ├── smoothing.py    # One Euro + EMA filters
 │   ├── engine.py       # gaze pipeline core
 │   └── event_source.py # WebcamEventSource (EventSource implementation)
@@ -218,7 +223,19 @@ for event in source.events():
 PY
 ```
 
-Download the MediaPipe model before running live webcam mode. Calibration data is saved under `data/gaze_calibration.json` by default.
+Download the pinned MediaPipe FaceLandmarker (float16 revision 1) before running
+live webcam mode. The script verifies SHA-256 and refuses a mismatched file.
+
+```bash
+python scripts/download_mediapipe_model.py
+```
+
+See `models/README.md` for the pinned URL and checksum. Calibration data is saved
+under `data/gaze_calibration.json` by default.
+
+During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
+`x`/`y` match `CALIBRATION_LAYOUT`. Pass `show_calibration=True` to open a
+window that draws those same targets at the current screen resolution.
 
 ## Accuracy and reliability
 

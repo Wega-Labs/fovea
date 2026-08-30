@@ -46,6 +46,10 @@ class Webcam:
             return np.asarray(cv2.flip(frame, 1))
         return np.asarray(frame)
 
+    @property
+    def is_connected(self) -> bool:
+        return self._capture is not None
+
     def disconnect(self) -> None:
         if self._capture is not None:
             self._capture.release()

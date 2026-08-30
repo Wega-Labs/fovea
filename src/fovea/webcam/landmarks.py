@@ -9,11 +9,9 @@ from typing import Any
 
 import numpy as np
 
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[3] / "models" / "face_landmarker.task"
-MODEL_URL = (
-    "https://storage.googleapis.com/mediapipe-models/"
-    "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
-)
+from fovea.webcam.model import DEFAULT_MODEL_PATH, FACE_LANDMARKER_URL
+
+MODEL_URL = FACE_LANDMARKER_URL
 
 
 @dataclass(frozen=True)
@@ -81,9 +79,13 @@ class FaceLandmarkEstimator:
         self._timestamp_ms = 0
 
     def close(self) -> None:
-        closer = getattr(self._landmarker, "close", None)
+        landmarker = getattr(self, "_landmarker", None)
+        if landmarker is None:
+            return
+        closer = getattr(landmarker, "close", None)
         if closer is not None:
             closer()
+        self._landmarker = None
 
     def process(self, frame_bgr: np.ndarray) -> FaceObservation | None:
         import cv2

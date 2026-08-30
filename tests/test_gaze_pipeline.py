@@ -269,7 +269,55 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
         tmp_path,
         max_frames=2,
         force_calibrate=False,
+        show_calibration=False,
     )
     events = list(source.events())
     assert any(isinstance(event, GazePoint) for event in events)
     assert any(isinstance(event, TrackingState) for event in events)
+
+
+def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:
+    from fovea.events import CalibrationCue
+    from fovea.webcam.calibration import CALIBRATION_LAYOUT
+    from fovea.webcam.event_source import WebcamEventSource
+
+    class FakeCamera:
+        def __init__(self, *_args, **_kwargs) -> None:
+            return None
+
+        def connect(self) -> None:
+            return None
+
+        def read(self):
+            return np.zeros((480, 640, 3), dtype=np.uint8)
+
+        def disconnect(self) -> None:
+            return None
+
+    class FakeEstimator:
+        def __init__(self, **_kwargs) -> None:
+            return None
+
+        def process(self, _frame):
+            return None
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", FakeCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        tmp_path,
+        max_frames=1,
+        force_calibrate=True,
+        show_calibration=False,
+    )
+    cues = [event for event in source.events() if isinstance(event, CalibrationCue)]
+    assert cues
+    first = CALIBRATION_LAYOUT[0]
+    assert cues[0].label == first.label
+    assert cues[0].x == first.x
+    assert cues[0].y == first.y
+    assert cues[0].total == len(CALIBRATION_LAYOUT)

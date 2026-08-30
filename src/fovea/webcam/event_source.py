@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import time
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from fovea.events import Blink, Eye, FoveaEvent, GazePoint, TrackingState, TrackingStatus
+from fovea.events import (
+    Blink,
+    CalibrationCue,
+    Eye,
+    FoveaEvent,
+    GazePoint,
+    TrackingState,
+    TrackingStatus,
+)
+from fovea.webcam.calibration import CALIBRATION_LAYOUT
+from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
@@ -34,11 +44,18 @@ class WebcamEventSource:
     model_path: str | Path | None = None
     max_frames: int | None = None
     force_calibrate: bool = False
+    show_calibration: bool = False
+    _camera: Webcam | None = field(default=None, init=False, repr=False)
+    _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
+    _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
+    _closed: bool = field(default=True, init=False, repr=False)
 
     def events(self) -> Iterator[FoveaEvent]:
+        self.close()
+        self._closed = False
         camera = Webcam(self.device_index, self.width, self.height, self.mirror)
+        self._camera = camera
         engine = GazeEngine(self.settings, self.project_root)
-        estimator: FaceLandmarkEstimator | None = None
         frames = 0
         t0 = time.perf_counter()
         frame_count = 0
@@ -49,10 +66,13 @@ class WebcamEventSource:
         try:
             camera.connect()
             estimator = FaceLandmarkEstimator(model_path=resolve_model_path(self.model_path))
+            self._estimator = estimator
+            if self.show_calibration:
+                self._display = CalibrationDisplay()
             if self.force_calibrate or engine.model is None:
                 engine.start_calibration()
 
-            while self.max_frames is None or frames < self.max_frames:
+            while not self._closed and (self.max_frames is None or frames < self.max_frames):
                 now = time.perf_counter()
                 dt = max(1e-3, now - last_time)
                 last_time = now
@@ -82,6 +102,22 @@ class WebcamEventSource:
                     landmarks, float(w), float(h), dt, fps, blendshapes=blendshapes
                 )
 
+                wizard = engine.wizard
+                if wizard is not None and not wizard.done:
+                    yield CalibrationCue(
+                        label=wizard.label,
+                        x=wizard.sx,
+                        y=wizard.sy,
+                        index=wizard.index,
+                        total=len(CALIBRATION_LAYOUT),
+                        samples=wizard.samples,
+                        needed=wizard.needed,
+                        instruction=wizard.instruction,
+                        timestamp_ns=timestamp_ns,
+                    )
+                    if self._display is not None:
+                        self._display.show(wizard)
+
                 status = _tracking_status(output.tracking)
                 yield TrackingState(
                     status=status,
@@ -108,9 +144,24 @@ class WebcamEventSource:
 
                 frames += 1
         finally:
-            if estimator is not None:
-                estimator.close()
-            camera.disconnect()
+            self.close()
 
     def close(self) -> None:
-        """Compatibility hook for callers that manage lifecycle explicitly."""
+        """Stop landmark inference and release the webcam capture.
+
+        Safe to call multiple times. This is the OpenCV analogue of stopping
+        MediaStream tracks: ``VideoCapture.release()`` ends the camera session.
+        """
+        self._closed = True
+        display = self._display
+        self._display = None
+        if display is not None:
+            display.close()
+        estimator = self._estimator
+        self._estimator = None
+        if estimator is not None:
+            estimator.close()
+        camera = self._camera
+        self._camera = None
+        if camera is not None:
+            camera.disconnect()

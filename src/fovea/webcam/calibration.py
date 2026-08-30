@@ -14,17 +14,36 @@ from fovea.webcam.features import FEATURE_NAMES, GazeFeatures
 
 CALIBRATION_VERSION = 2
 
-CALIBRATION_LAYOUT: tuple[tuple[str, float, float], ...] = (
-    ("center", 0.50, 0.50),
-    ("top_left", 0.12, 0.12),
-    ("top_center", 0.50, 0.12),
-    ("top_right", 0.88, 0.12),
-    ("center_left", 0.12, 0.50),
-    ("center", 0.50, 0.50),
-    ("center_right", 0.88, 0.50),
-    ("bottom_left", 0.12, 0.88),
-    ("bottom_center", 0.50, 0.88),
-    ("bottom_right", 0.88, 0.88),
+
+@dataclass(frozen=True, slots=True)
+class CalibrationTarget:
+    """One calibration look-target in normalized screen space (origin top-left)."""
+
+    label: str
+    x: float
+    y: float
+
+    def pixel_xy(self, width: int, height: int) -> tuple[int, int]:
+        """Map this target onto a canvas of ``width`` x ``height`` pixels."""
+        if width < 1 or height < 1:
+            msg = "width and height must be at least 1"
+            raise ValueError(msg)
+        px = round(self.x * (width - 1))
+        py = round(self.y * (height - 1))
+        return px, py
+
+
+CALIBRATION_LAYOUT: tuple[CalibrationTarget, ...] = (
+    CalibrationTarget("center", 0.50, 0.50),
+    CalibrationTarget("top_left", 0.12, 0.12),
+    CalibrationTarget("top_center", 0.50, 0.12),
+    CalibrationTarget("top_right", 0.88, 0.12),
+    CalibrationTarget("center_left", 0.12, 0.50),
+    CalibrationTarget("center", 0.50, 0.50),
+    CalibrationTarget("center_right", 0.88, 0.50),
+    CalibrationTarget("bottom_left", 0.12, 0.88),
+    CalibrationTarget("bottom_center", 0.50, 0.88),
+    CalibrationTarget("bottom_right", 0.88, 0.88),
 )
 
 DEFAULT_RIDGE = 0.05

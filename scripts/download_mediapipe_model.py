@@ -1,28 +1,29 @@
 #!/usr/bin/env python3
-"""Download the MediaPipe FaceLandmarker .task model used by the webcam engine."""
+"""Download and verify the pinned MediaPipe FaceLandmarker model."""
 
 from __future__ import annotations
 
 import sys
-import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEST = ROOT / "models" / "face_landmarker.task"
-URL = (
-    "https://storage.googleapis.com/mediapipe-models/"
-    "face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+sys.path.insert(0, str(ROOT / "src"))
+
+from fovea.webcam.model import (  # noqa: E402
+    FACE_LANDMARKER_SHA256,
+    FACE_LANDMARKER_URL,
+    FACE_LANDMARKER_VERSION,
+    download_face_landmarker,
 )
 
 
 def main() -> int:
-    DEST.parent.mkdir(parents=True, exist_ok=True)
-    if DEST.is_file() and DEST.stat().st_size > 0:
-        print(f"Already present: {DEST}")
-        return 0
-    print(f"Downloading {URL}")
-    urllib.request.urlretrieve(URL, DEST)
-    print(f"Saved {DEST} ({DEST.stat().st_size} bytes)")
+    dest = ROOT / "models" / "face_landmarker.task"
+    print(f"Pinned FaceLandmarker float16 revision {FACE_LANDMARKER_VERSION}")
+    print(f"URL: {FACE_LANDMARKER_URL}")
+    print(f"SHA-256: {FACE_LANDMARKER_SHA256}")
+    path = download_face_landmarker(dest)
+    print(f"Verified {path} ({path.stat().st_size} bytes)")
     return 0
 
 

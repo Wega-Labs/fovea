@@ -110,14 +110,14 @@ class GazeEngine:
         if index >= len(CALIBRATION_LAYOUT):
             self.wizard = None
             return
-        label, sx, sy = CALIBRATION_LAYOUT[index]
+        target = CALIBRATION_LAYOUT[index]
         collector = self._collectors[index]
         self.wizard = WizardState(
             kind=kind,
             index=index,
-            label=label,
-            sx=sx,
-            sy=sy,
+            label=target.label,
+            sx=target.x,
+            sy=target.y,
             samples=collector.count,
             needed=self.settings.samples_per_point,
             quality=collector.quality(),
@@ -273,12 +273,12 @@ class GazeEngine:
         xy: list[tuple[float, float]] = []
         counts: dict[str, int] = {}
         qualities: dict[str, str] = {}
-        for (label, sx, sy), collector in zip(CALIBRATION_LAYOUT, self._collectors, strict=True):
+        for target, collector in zip(CALIBRATION_LAYOUT, self._collectors, strict=True):
             if collector.count == 0:
                 continue
             rows.append(collector.median())
-            xy.append((sx, sy))
-            key = f"{label}_{len(counts)}"
+            xy.append((target.x, target.y))
+            key = f"{target.label}_{len(counts)}"
             counts[key] = collector.count
             qualities[key] = collector.quality()
         if len(rows) >= 3:

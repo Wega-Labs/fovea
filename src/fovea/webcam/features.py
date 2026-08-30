@@ -235,9 +235,7 @@ def extract_features(
     max_yaw_deg: float,
     blendshapes: Mapping[str, float] | None = None,
 ) -> GazeFeatures:
-    left = extract_eye(
-        landmarks, LEFT_OUTER, LEFT_INNER, LEFT_UPPER, LEFT_LOWER, LEFT_IRIS_RING
-    )
+    left = extract_eye(landmarks, LEFT_OUTER, LEFT_INNER, LEFT_UPPER, LEFT_LOWER, LEFT_IRIS_RING)
     right = extract_eye(
         landmarks, RIGHT_OUTER, RIGHT_INNER, RIGHT_UPPER, RIGHT_LOWER, RIGHT_IRIS_RING
     )
