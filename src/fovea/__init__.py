@@ -13,6 +13,7 @@ from fovea.events import (
     TrackingStatus,
 )
 from fovea.interfaces import EventSink, EventSource
+from fovea.webcam import GazeEngine, GazeSettings, WebcamEventSource
 
 __all__ = [
     "Blink",
@@ -21,12 +22,15 @@ __all__ = [
     "Eye",
     "Fixation",
     "FoveaEvent",
+    "GazeEngine",
     "GazePoint",
+    "GazeSettings",
     "Gesture",
     "GesturePhase",
     "Manipulation",
     "TrackingState",
     "TrackingStatus",
+    "WebcamEventSource",
 ]
 
 __version__ = "0.1.0"

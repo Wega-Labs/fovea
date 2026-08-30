@@ -12,3 +12,10 @@ __pycache__/
 build/
 dist/
 htmlcov/
+data/
+models/*.task
+uv.lock
+
+# October (generated — context bus / browser MCP)
+.cursor/mcp.json
+.cursor/cli.json
