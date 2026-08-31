@@ -193,6 +193,29 @@ class CalibrationDone:
 
 
 @dataclass(frozen=True, slots=True)
+class GazeTestPoint:
+    """One expected and predicted point from a guided gaze test."""
+
+    expected_x: float
+    expected_y: float
+    predicted_x: float
+    predicted_y: float
+    error: float
+
+
+@dataclass(frozen=True, slots=True)
+class GazeTestDone:
+    """A completed guided gaze test and its point-level results."""
+
+    n_points: int
+    mean_error: float
+    median_error: float
+    max_error: float
+    points: tuple[GazeTestPoint, ...]
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
 class Diagnostics:
     """Rate-limited local pipeline health measurements."""
 
@@ -218,5 +241,6 @@ type FoveaEvent = (
     | CalibrationCue
     | CalibrationWarning
     | CalibrationDone
+    | GazeTestDone
     | Diagnostics
 )

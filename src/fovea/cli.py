@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import platform
 import queue
 import signal
@@ -16,6 +17,7 @@ from types import FrameType
 from typing import NoReturn
 
 from fovea import __version__
+from fovea.benchmark import BenchmarkConfig, run_live_benchmark
 from fovea.interfaces import EventSource
 from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expired_diagnostics
 from fovea.protocol import (
@@ -72,6 +74,26 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not math.isfinite(parsed) or parsed <= 0.0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than zero")
+    return parsed
+
+
+def _nonnegative_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not math.isfinite(parsed) or parsed < 0.0:
+        raise argparse.ArgumentTypeError("must be a finite number zero or greater")
+    return parsed
+
+
 def _retention_seconds(value: str) -> float:
     try:
         return parse_retention(value)
@@ -114,6 +136,21 @@ def _build_parser() -> _JsonArgumentParser:
 
     test = commands.add_parser("test", help="run the calibrated gaze test")
     _add_capture_arguments(test, require_ndjson=False)
+
+    bench = commands.add_parser("bench", help="run the guided live benchmark")
+    _add_capture_arguments(bench, require_ndjson=False)
+    bench.set_defaults(diagnostics=True)
+    bench.add_argument("--screen-width-cm", type=_positive_float, required=True)
+    bench.add_argument("--screen-height-cm", type=_positive_float, required=True)
+    bench.add_argument("--camera-name", required=True)
+    bench.add_argument("--lighting", required=True)
+    bench.add_argument("--glasses", required=True)
+    bench.add_argument("--machine", default=platform.platform())
+    bench.add_argument("--fixation-seconds", type=_positive_float, default=2.0)
+    bench.add_argument("--yaw-seconds", type=_nonnegative_float, default=2.0)
+    bench.add_argument("--drift-seconds", type=_nonnegative_float, default=600.0)
+    bench.add_argument("--output", type=Path, default=Path("fovea-benchmark.json"))
+    bench.add_argument("--yes", action="store_true", help="skip phase confirmation prompts")
 
     commands.add_parser("doctor", help="print environment and camera diagnostics")
     commands.add_parser("schema", help="print the protocol JSON Schema")
@@ -317,6 +354,33 @@ def _doctor() -> int:
     return 0
 
 
+def _benchmark_prompt(message: str, *, assume_yes: bool) -> None:
+    print(message, file=sys.stderr, flush=True)
+    if assume_yes:
+        return
+    print("Press Enter when ready.", file=sys.stderr, flush=True)
+    if sys.stdin.readline() == "":
+        raise CliUsageError("benchmark input ended; pass --yes for non-interactive operation")
+
+
+def _benchmark_config(args: argparse.Namespace) -> BenchmarkConfig:
+    return BenchmarkConfig(
+        screen_width_cm=args.screen_width_cm,
+        screen_height_cm=args.screen_height_cm,
+        capture_width=args.width,
+        capture_height=args.height,
+        camera_name=args.camera_name,
+        lighting=args.lighting,
+        glasses=args.glasses,
+        camera_index=args.camera,
+        fovea_version=__version__,
+        machine=args.machine,
+        fixation_seconds=args.fixation_seconds,
+        yaw_seconds=args.yaw_seconds,
+        drift_seconds=args.drift_seconds,
+    )
+
+
 def main(argv: list[str] | None = None, source_factory: SourceFactory | None = None) -> int:
     """Run the CLI and return a stable process exit code."""
     try:
@@ -339,6 +403,16 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
         if source_factory is None:
             verify_face_landmarker(resolve_model_path(args.model))
         source = _make_source(args, source_factory or WebcamEventSource)
+        if args.command == "bench":
+            report = run_live_benchmark(
+                source,
+                _benchmark_config(args),
+                prompt=lambda message: _benchmark_prompt(message, assume_yes=args.yes),
+            )
+            rendered = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+            args.output.write_text(rendered, encoding="utf-8")
+            print(rendered, end="")
+            return 0
         return _stream(source)
     except CameraError as exc:
         _emit_error(str(exc))

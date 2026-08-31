@@ -43,6 +43,9 @@
       "$ref": "#/$defs/calibration_done"
     },
     {
+      "$ref": "#/$defs/gaze_test_done"
+    },
+    {
       "$ref": "#/$defs/diagnostics"
     },
     {
@@ -485,6 +488,70 @@
         "n_points",
         "coverage",
         "loo_error",
+        "timestamp_ns"
+      ]
+    },
+    "gaze_test_done": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "gaze_test_done"
+        },
+        "n_points": {
+          "type": "integer"
+        },
+        "mean_error": {
+          "type": "number"
+        },
+        "median_error": {
+          "type": "number"
+        },
+        "max_error": {
+          "type": "number"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "expected_x": {
+                "type": "number"
+              },
+              "expected_y": {
+                "type": "number"
+              },
+              "predicted_x": {
+                "type": "number"
+              },
+              "predicted_y": {
+                "type": "number"
+              },
+              "error": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "expected_x",
+              "expected_y",
+              "predicted_x",
+              "predicted_y",
+              "error"
+            ]
+          }
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "n_points",
+        "mean_error",
+        "median_error",
+        "max_error",
+        "points",
         "timestamp_ns"
       ]
     },

@@ -18,8 +18,9 @@ field, changing its meaning or type, or changing the coordinate space requires a
 new protocol major version.
 
 Nullable `GazePoint.target_id`, `snapped_x`, and `snapped_y` preserve the raw gaze
-coordinate while exposing target-aware intent. Event timestamps are nanoseconds;
-ordering follows the NDJSON stream.
+coordinate while exposing target-aware intent. `GazeTestDone` carries expected and
+predicted points so benchmark hosts do not need access to engine internals. Event
+timestamps are nanoseconds; ordering follows the NDJSON stream.
 
 ## Controls
 

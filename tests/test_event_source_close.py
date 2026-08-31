@@ -68,6 +68,7 @@ class FinishingCalibrationEngine:
         self.targets: tuple[CalibrationTarget, ...] = CALIBRATION_LAYOUT
         self.calibration_warning = ""
         self.last_calibration_report: dict[str, object] = {}
+        self.last_test_report: dict[str, object] = {}
 
     def start_calibration(self, targets: tuple[CalibrationTarget, ...] | None = None) -> None:
         if targets is not None:
@@ -102,6 +103,9 @@ class FinishingCalibrationEngine:
             calibrated=True,
             frozen=False,
         )
+
+    def resume_after_gaze_test(self) -> None:
+        return None
 
 
 def test_close_releases_webcam(monkeypatch, tmp_path) -> None:

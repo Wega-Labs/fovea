@@ -45,6 +45,7 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
             "blink",
             "windowed_calibration",
             "target_aware",
+            "gaze_test_report",
         ],
     }
 

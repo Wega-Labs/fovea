@@ -24,6 +24,8 @@ from fovea.events import (
     Fixation,
     FoveaEvent,
     GazePoint,
+    GazeTestDone,
+    GazeTestPoint,
     Gesture,
     GesturePhase,
     Manipulation,
@@ -55,7 +57,15 @@ def _all_event_types() -> list[FoveaEvent]:
         CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 11),
         CalibrationWarning("Target coverage is low", 0.2, 12),
         CalibrationDone(5, 0.76, 0.08, 13),
-        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 14),
+        GazeTestDone(
+            1,
+            0.04,
+            0.04,
+            0.04,
+            (GazeTestPoint(0.5, 0.5, 0.53, 0.52, 0.04),),
+            14,
+        ),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 15),
     ]
 
 
@@ -63,7 +73,7 @@ def _all_event_types() -> list[FoveaEvent]:
 def test_every_event_serializes_to_ndjson(event: FoveaEvent) -> None:
     payload = json.loads(to_json(event))
     assert payload.pop("type") == event_type_name(type(event))
-    expected = asdict(event)
+    expected = json.loads(json.dumps(asdict(event)))
     assert payload == expected
     assert "\n" not in to_json(event)
 
@@ -313,6 +323,44 @@ def test_display_identity_arguments_reach_source(monkeypatch, capsys) -> None:
     assert received["display_width"] == 2560
     assert received["display_height"] == 1440
     assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+def test_bench_writes_json_report(monkeypatch, capsys, tmp_path) -> None:
+    monkeypatch.setattr(
+        "fovea.cli.run_live_benchmark",
+        lambda *_args, **_kwargs: {"schema": "fovea-benchmark-v1", "accuracy": {}},
+    )
+    output = tmp_path / "report.json"
+    source = FakeSource([])
+    args = [
+        "bench",
+        "--screen-width-cm",
+        "30",
+        "--screen-height-cm",
+        "20",
+        "--camera-name",
+        "integrated",
+        "--lighting",
+        "office",
+        "--glasses",
+        "none",
+        "--diagnostics-dir",
+        str(tmp_path / "diagnostics"),
+        "--output",
+        str(output),
+        "--yes",
+    ]
+
+    assert main(args, source_factory=lambda **_kwargs: source) == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == {
+        "schema": "fovea-benchmark-v1",
+        "accuracy": {},
+    }
+    assert json.loads(capsys.readouterr().out) == {
+        "schema": "fovea-benchmark-v1",
+        "accuracy": {},
+    }
+    assert source.closed
 
 
 def test_invalid_camera_exits_two_with_one_json_error(capsys) -> None:
