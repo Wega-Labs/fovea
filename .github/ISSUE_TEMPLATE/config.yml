@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contributor start here
+    url: https://github.com/Wega-Labs/fovea/issues/7
+    about: Read the execution tracker and find a focused issue.
+  - name: Contributing guide
+    url: https://github.com/Wega-Labs/fovea/blob/main/CONTRIBUTING.md
+    about: Setup, test, fixture, event-contract, and pull-request guidance.
+  - name: Private security report
+    url: https://github.com/Wega-Labs/fovea/security/advisories/new
+    about: Report security and privacy vulnerabilities privately.
