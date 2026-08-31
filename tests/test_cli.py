@@ -182,19 +182,6 @@ def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
     assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
-def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO(""))
-    received: dict[str, object] = {}
-
-    def factory(**kwargs: object) -> FakeSource:
-        received.update(kwargs)
-        return FakeSource([])
-
-    assert main(["run", "--ndjson", "--diagnostics"], source_factory=factory) == 0
-    assert received["diagnostics"] is True
-    assert capsys.readouterr().out == ""
-
-
 def test_invalid_camera_exits_two_with_one_json_error(capsys) -> None:
     exit_code = main(["run", "--ndjson", "--camera", "-1"])
     lines = capsys.readouterr().out.splitlines()
