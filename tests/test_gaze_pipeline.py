@@ -270,7 +270,7 @@ def test_calibration_roundtrip(tmp_path) -> None:
 
 
 def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
-    from fovea.events import GazePoint, TrackingState, TrackingStatus
+    from fovea.events import Diagnostics, GazePoint, TrackingState, TrackingStatus
     from fovea.webcam.calibration import fit_ridge, save_model
     from fovea.webcam.event_source import WebcamEventSource
 
@@ -321,10 +321,14 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
         max_frames=2,
         force_calibrate=False,
         show_calibration=False,
+        diagnostics=True,
     )
     events = list(source.events())
     assert any(isinstance(event, GazePoint) for event in events)
     assert any(isinstance(event, TrackingState) for event in events)
+    diagnostics = [event for event in events if isinstance(event, Diagnostics)]
+    assert len(diagnostics) == 1
+    assert diagnostics[0].face_width > 0.0
     poor_states = [
         event
         for event in events
@@ -332,6 +336,14 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
     ]
     assert poor_states
     assert poor_states[0].detail == "Face too far from camera"
+
+
+def test_diagnostics_rate_limit_is_two_hz() -> None:
+    from fovea.webcam.event_source import _diagnostics_due
+
+    assert _diagnostics_due(None, 10.0)
+    assert not _diagnostics_due(10.0, 10.499)
+    assert _diagnostics_due(10.0, 10.5)
 
 
 def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:

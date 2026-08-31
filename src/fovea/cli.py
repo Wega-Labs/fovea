@@ -67,6 +67,7 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--calibration-path", type=Path, metavar="P")
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
+    parser.add_argument("--diagnostics", action="store_true")
 
 
 def _build_parser() -> _JsonArgumentParser:
@@ -196,6 +197,7 @@ def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSourc
         force_calibrate=(args.command == "calibrate" or bool(getattr(args, "calibrate", False))),
         force_test=args.command == "test",
         show_calibration=not args.no_display,
+        diagnostics=args.diagnostics,
     )
 
 
