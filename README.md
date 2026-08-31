@@ -151,6 +151,11 @@ Fovea uses a library-first Python stack for fast vision research and a clean pat
 
 MediaPipe provides on-device face, eye, iris, and hand landmarks. A separate calibrated estimator maps those observations to a screen position; iris landmarks alone do not reveal where someone is looking.
 
+Landmark inference crosses the public `LandmarkBackend` protocol: backends open a
+model, accept RGB frames with caller-owned timestamps, and return backend-neutral
+observations. MediaPipe is the only implementation currently shipped; LiteRT and
+ONNX adapters remain follow-up work rather than advertised runtime options.
+
 The architecture keeps replaceable boundaries for:
 
 - camera and frame capture
@@ -193,14 +198,16 @@ Current package layout:
 
 ```text
 src/fovea/
+├── benchmark.py        # guided live benchmark and report math
 ├── cli.py              # NDJSON command-line process boundary
 ├── events.py           # immutable gaze, blink, gesture, and tracking events
 ├── interfaces.py       # event producer and consumer protocols
 ├── serialize.py        # stable event-to-JSON serialization
 ├── util.py             # shared helpers (ScreenPoint, clamp01)
 ├── webcam/
+│   ├── backend.py      # LandmarkBackend protocol + MediaPipe implementation
 │   ├── camera.py       # OpenCV webcam capture
-│   ├── landmarks.py    # MediaPipe FaceLandmarker adapter
+│   ├── landmarks.py    # BGR camera compatibility session
 │   ├── features.py     # iris + head-pose gaze features
 │   ├── calibration.py  # 10-point ridge calibration
 │   ├── calibration_view.py  # on-screen calibration targets
@@ -246,6 +253,11 @@ for event in source.events():
 
 Download the pinned MediaPipe FaceLandmarker (float16 revision 1) before running
 live webcam mode. The script verifies SHA-256 and refuses a mismatched file.
+
+Live commands accept `--backend mediapipe`; the selected backend is repeated in
+the first `hello` line and by `fovea doctor --backend mediapipe`. The explicit
+flag makes backend selection stable for hosts while keeping unsupported adapters
+out of the CLI choices.
 
 ```bash
 python scripts/download_mediapipe_model.py

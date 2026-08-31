@@ -44,6 +44,7 @@ class BenchmarkConfig:
     fixation_seconds: float = 2.0
     yaw_seconds: float = 2.0
     drift_seconds: float = 600.0
+    backend: str = "mediapipe"
 
     def __post_init__(self) -> None:
         if self.capture_width < 1 or self.capture_height < 1:
@@ -56,9 +57,9 @@ class BenchmarkConfig:
         nonnegative = (self.yaw_seconds, self.drift_seconds)
         if not all(math.isfinite(value) and value >= 0.0 for value in nonnegative):
             raise ValueError("yaw and drift durations must be non-negative")
-        metadata = (self.camera_name, self.lighting, self.glasses)
+        metadata = (self.camera_name, self.lighting, self.glasses, self.backend)
         if not all(value.strip() for value in metadata):
-            raise ValueError("camera, lighting, and glasses metadata must be non-empty")
+            raise ValueError("camera, lighting, glasses, and backend metadata must be non-empty")
 
 
 def percentile(values: list[float], quantile: float) -> float | None:
@@ -226,6 +227,7 @@ def run_live_benchmark(
         "software": {
             "fovea": config.fovea_version,
             "python": platform.python_version(),
+            "landmark_backend": config.backend,
         },
         "environment": {
             "machine": config.machine,

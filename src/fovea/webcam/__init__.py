@@ -1,3 +1,9 @@
+from fovea.webcam.backend import (
+    BACKEND_NAMES,
+    LandmarkBackend,
+    LandmarkObservation,
+    MediaPipeBackend,
+)
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationIdentity, CalibrationTarget
 from fovea.webcam.calibration_view import CalibrationDisplay, render_calibration_frame
 from fovea.webcam.camera import CameraError, Webcam
@@ -7,6 +13,7 @@ from fovea.webcam.landmarks import FaceLandmarkEstimator, MediaPipeUnavailableEr
 from fovea.webcam.targeting import TargetRect, TargetTracker
 
 __all__ = [
+    "BACKEND_NAMES",
     "CALIBRATION_LAYOUT",
     "CalibrationDisplay",
     "CalibrationIdentity",
@@ -16,6 +23,9 @@ __all__ = [
     "GazeEngine",
     "GazeOutput",
     "GazeSettings",
+    "LandmarkBackend",
+    "LandmarkObservation",
+    "MediaPipeBackend",
     "MediaPipeUnavailableError",
     "TargetRect",
     "TargetTracker",

@@ -21,6 +21,7 @@ from fovea.events import (
     TrackingState,
     TrackingStatus,
 )
+from fovea.webcam.backend import create_landmark_backend
 from fovea.webcam.calibration import (
     CalibrationIdentity,
     CalibrationTarget,
@@ -131,6 +132,7 @@ class WebcamEventSource:
     display_id: str | None = None
     display_width: int = 1280
     display_height: int = 720
+    backend: str = "mediapipe"
     _camera: Webcam | None = field(default=None, init=False, repr=False)
     _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
@@ -186,7 +188,10 @@ class WebcamEventSource:
 
         try:
             camera.connect()
-            estimator = FaceLandmarkEstimator(model_path=resolve_model_path(self.model_path))
+            estimator = FaceLandmarkEstimator(
+                model_path=resolve_model_path(self.model_path),
+                backend=create_landmark_backend(self.backend),
+            )
             self._estimator = estimator
             if self.force_calibrate or engine.model is None:
                 self.start_calibration(self._calibration_targets)

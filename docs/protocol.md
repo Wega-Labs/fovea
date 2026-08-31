@@ -9,6 +9,11 @@ top-left and `(1, 1)` is its bottom-right. Hosts must display a visible camera-u
 indicator whenever capture is active, as declared by `indicator_required` in the
 handshake.
 
+The `hello.backend` field reports the landmark implementation selected with the
+CLI `--backend` option. Hosts may record it for diagnostics and benchmark
+comparability, but must not infer additional event fields from its value. The
+currently shipped value is `mediapipe`.
+
 ## Compatibility
 
 The checked-in schema is `schema/fovea-protocol-v1.json`. Additive event types,
