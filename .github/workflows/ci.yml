@@ -54,3 +54,26 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+  typescript-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install client development dependencies
+        run: npm install --prefix packages/fovea-client --no-audit --no-fund
+
+      - name: Verify generated protocol types
+        run: npm run generate:check --prefix packages/fovea-client
+
+      - name: Type check client and tests
+        run: npm run check --prefix packages/fovea-client
+
+      - name: Test client
+        run: npm test --prefix packages/fovea-client
+
+      - name: Build client
+        run: npm run build --prefix packages/fovea-client

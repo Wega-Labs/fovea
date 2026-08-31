@@ -649,3 +649,85 @@ first response 5 working days.
 | C7 | #18 | #18 (code); live run = owner |
 | C8 | #15 | comment (first half) |
 | C9 | #9 | #9 (publish = owner) |
+
+## Execution report 2026-08-31
+
+### Merged pull requests and closed issues
+
+- [#34](https://github.com/Wega-Labs/fovea/pull/34) pinned the compatible MediaPipe
+  line and added real-graph coverage; issue #2 is closed.
+- [#35](https://github.com/Wega-Labs/fovea/pull/35) added the macOS CI leg and model
+  cache. The deliberately failing guard proof was reviewed separately in closed,
+  unmerged PR [#36](https://github.com/Wega-Labs/fovea/pull/36).
+- [#37](https://github.com/Wega-Labs/fovea/pull/37) fixed desk-distance calibration
+  gates and exposed tracking detail; issue #3 is closed.
+- [#38](https://github.com/Wega-Labs/fovea/pull/38) fixed the head-pose convention;
+  issue #4 is closed.
+- [#39](https://github.com/Wega-Labs/fovea/pull/39) added the NDJSON CLI, controls,
+  doctor, and stable exit codes; issue #5 is closed.
+
+At the owner's direction, the remaining work was committed without local
+acceptance commands, opened as a dependency-ordered PR stack, rebased in order,
+and admitted only after the repository's required GitHub checks passed. The
+following PRs are merged:
+
+| Area | Merged PR | Result |
+|---|---|---|
+| Landmark record/replay | #41 | closed #17 |
+| Platform-native paths | #42 | merged |
+| Landmark timestamps | #43 | merged |
+| Community health files | #44 | merged |
+| README truthfulness | #45 | merged |
+| Diagnostics events | #46 | merged |
+| Protocol and schema | #47 | closed #8 |
+| Calibration identity | #48 | merged |
+| Fixation and blink | #49 | merged |
+| Windowed calibration | #50 | closed #10 |
+| Target-aware mode | #51 | closed #11 |
+| Privacy enforcement | #52 | closed #27 |
+| Benchmark suite | #53 | closed #18; live runs remain an owner action |
+| Backend seam (first half) | #54 | merged; #15 remains open for later backends |
+
+PR #55 is the final TypeScript-client PR and contains this report. It closes #9
+when merged. Its final merge status cannot truthfully be self-reported by the
+commit being merged; GitHub is the authoritative record. The branch is to be
+deleted as part of that merge.
+
+Duplicate CLI PR #40 was closed as superseded by merged PR #39. `main` branch
+protection now requires changes through pull requests, the current Ubuntu and
+macOS CI contexts, and resolved conversations. The approving-review count is
+zero because the repository currently has one organization member; GitHub does
+not permit authors to approve their own pull requests. Protection applies to
+administrators, rejects force-pushes and deletion, and restricts protected
+pushes to the `harshsaver` account.
+
+All merged PR branches in #41–#54 were deleted after their dependents were
+retargeted. Immediately before the final merge, the only remote branches are
+`main` and PR #55's `feat/9-typescript-client`; the latter is deleted by the
+merge command.
+
+### Verification and measurements
+
+The executor did not run local branch test suites, type checkers, package builds,
+generated-file commands, the live benchmark, or Appendix A's camera smoke test
+after the owner's instruction to leave local execution for later. The required
+GitHub CI checks did run remotely for merged PRs #41–#54 and passed on Ubuntu and
+macOS before each merge. Consequently there is still no new local test count,
+live FPS/latency/pitch measurement, three-machine benchmark, or Electron
+end-to-end result to report.
+
+No new evidence was collected that contradicts the measured facts in §0.2. This
+is an absence of measurement, not a revalidation of those numbers.
+
+### Remaining owner and release actions
+
+- Perform the deferred local and live acceptance checks on the merged tree.
+- Create/configure the PyPI project and trusted publisher, and create the npm
+  organization/access needed for `@wega-labs/fovea-client`.
+- Supply the Code of Conduct contact address and confirm the intended CODEOWNERS.
+- Run and publish the live benchmark on three real machine/camera combinations.
+- Have a second person perform fresh-clone macOS and Linux checks, including the
+  macOS camera permission and Gatekeeper path.
+- Record the 60-second engine plus Electron demo.
+- Only after those checks, update the changelog and create the appropriate
+  release tag; no tag or package publication was performed in this execution.
