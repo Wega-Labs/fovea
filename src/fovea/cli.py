@@ -13,6 +13,7 @@ import threading
 from collections.abc import Callable
 from importlib import metadata
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import FrameType
 from typing import NoReturn
 
@@ -37,6 +38,7 @@ from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
 from fovea.webcam.engine import GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
+from fovea.webcam.fixtures import ReplayEventSource, record_landmarks
 from fovea.webcam.landmarks import MediaPipeUnavailableError, resolve_model_path
 from fovea.webcam.model import (
     DEFAULT_MODEL_PATH,
@@ -153,6 +155,19 @@ def _build_parser() -> _JsonArgumentParser:
     bench.add_argument("--drift-seconds", type=_nonnegative_float, default=600.0)
     bench.add_argument("--output", type=Path, default=Path("fovea-benchmark.json"))
     bench.add_argument("--yes", action="store_true", help="skip phase confirmation prompts")
+
+    record = commands.add_parser("record", help="record privacy-safe landmark frames")
+    record.add_argument("--landmarks", type=Path, required=True, metavar="PATH")
+    record.add_argument("--seconds", type=_positive_float, default=10.0, metavar="N")
+    record.add_argument("--camera", type=_nonnegative_int, default=0, metavar="N")
+    record.add_argument("--width", type=_positive_int, default=640, metavar="W")
+    record.add_argument("--height", type=_positive_int, default=480, metavar="H")
+    record.add_argument("--model", type=Path, metavar="P")
+
+    replay = commands.add_parser("replay", help="replay landmark frames without a camera")
+    replay.add_argument("fixture", type=Path)
+    replay.add_argument("--ndjson", action="store_true", required=True)
+    replay.add_argument("--max-frames", type=_positive_int, metavar="N")
 
     doctor = commands.add_parser("doctor", help="print environment and camera diagnostics")
     doctor.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
@@ -404,6 +419,28 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
 
     source: EventSource | None = None
     try:
+        if args.command == "record":
+            verify_face_landmarker(resolve_model_path(args.model))
+            frames = record_landmarks(
+                args.landmarks,
+                seconds=args.seconds,
+                device_index=args.camera,
+                width=args.width,
+                height=args.height,
+                model_path=args.model,
+            )
+            print(f"Recorded {frames} landmark frames to {args.landmarks}", file=sys.stderr)
+            return 0
+        if args.command == "replay":
+            with TemporaryDirectory(prefix="fovea-replay-") as directory:
+                settings = GazeSettings(calibration_path=str(Path(directory) / "none.json"))
+                source = ReplayEventSource(
+                    path=args.fixture,
+                    settings=settings,
+                    project_root=Path(directory),
+                    max_frames=args.max_frames,
+                )
+                return _stream(source)
         if args.diagnostics:
             diagnostics_dir = args.diagnostics_dir or default_diagnostics_dir()
             purge_expired_diagnostics(diagnostics_dir, args.diagnostics_retention)

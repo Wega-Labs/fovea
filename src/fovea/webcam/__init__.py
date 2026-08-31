@@ -9,6 +9,8 @@ from fovea.webcam.calibration_view import CalibrationDisplay, render_calibration
 from fovea.webcam.camera import CameraError, Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
+from fovea.webcam.fixtures import LandmarkFrame, RecordedLandmark, ReplayEventSource
+from fovea.webcam.frame_processor import GazeFrameProcessor
 from fovea.webcam.landmarks import FaceLandmarkEstimator, MediaPipeUnavailableError
 from fovea.webcam.targeting import TargetRect, TargetTracker
 
@@ -21,12 +23,16 @@ __all__ = [
     "CameraError",
     "FaceLandmarkEstimator",
     "GazeEngine",
+    "GazeFrameProcessor",
     "GazeOutput",
     "GazeSettings",
     "LandmarkBackend",
+    "LandmarkFrame",
     "LandmarkObservation",
     "MediaPipeBackend",
     "MediaPipeUnavailableError",
+    "RecordedLandmark",
+    "ReplayEventSource",
     "TargetRect",
     "TargetTracker",
     "Webcam",

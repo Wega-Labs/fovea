@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 
@@ -24,6 +25,7 @@ from fovea.webcam.features import (
 )
 from fovea.webcam.sampler import PointCollector
 from fovea.webcam.smoothing import OneEuroPoint, ema
+from tests.synth import synthetic_landmarks
 
 
 def lm(x: float, y: float) -> SimpleNamespace:
@@ -36,35 +38,23 @@ def _face_with_iris(
     right_nx: float = 0.5,
     right_ny: float = 0.5,
     face_width: float = 0.44,
-) -> list[SimpleNamespace]:
-    points = [lm(0.5, 0.5) for _ in range(478)]
-    points[1] = lm(0.50, 0.52)
-    points[10] = lm(0.50, 0.18)
-    points[152] = lm(0.50, 0.90)
-    points[234] = lm(0.5 - face_width / 2, 0.52)
-    points[454] = lm(0.5 + face_width / 2, 0.52)
-    points[291] = lm(0.58, 0.70)
-    points[61] = lm(0.42, 0.70)
-
-    points[33] = lm(0.30, 0.40)
-    points[133] = lm(0.40, 0.40)
-    for i in (159, 158, 157, 173, 160):
-        points[i] = lm(0.35, 0.36)
-    for i in (145, 144, 163, 153):
-        points[i] = lm(0.35, 0.44)
-    rx = 0.30 + right_nx * 0.10
-    ry = 0.36 + right_ny * 0.08
+) -> list[Any]:
+    points: list[Any] = list(synthetic_landmarks(face_width=face_width))
+    right_outer = points[33]
+    right_inner = points[133]
+    right_top = min(points[index].y for index in (159, 158, 157, 173, 160))
+    right_bottom = max(points[index].y for index in (145, 144, 163, 153))
+    rx = min(right_outer.x, right_inner.x) + right_nx * abs(right_inner.x - right_outer.x)
+    ry = right_top + right_ny * (right_bottom - right_top)
     for i in (468, 469, 470, 471, 472):
         points[i] = lm(rx, ry)
 
-    points[263] = lm(0.70, 0.40)
-    points[362] = lm(0.60, 0.40)
-    for i in (386, 385, 384, 398, 387):
-        points[i] = lm(0.65, 0.36)
-    for i in (374, 373, 380, 382):
-        points[i] = lm(0.65, 0.44)
-    lx = 0.60 + left_nx * 0.10
-    ly = 0.36 + left_ny * 0.08
+    left_outer = points[263]
+    left_inner = points[362]
+    left_top = min(points[index].y for index in (386, 385, 384, 398, 387))
+    left_bottom = max(points[index].y for index in (374, 373, 380, 382))
+    lx = min(left_outer.x, left_inner.x) + left_nx * abs(left_inner.x - left_outer.x)
+    ly = left_top + left_ny * (left_bottom - left_top)
     for i in (473, 474, 475, 476, 477):
         points[i] = lm(lx, ly)
     return points
