@@ -26,6 +26,7 @@ from fovea.events import (
     TrackingState,
     TrackingStatus,
 )
+from fovea.protocol import hello_json
 from fovea.serialize import event_type_name, to_json
 from fovea.webcam.camera import CameraError
 from fovea.webcam.landmarks import MediaPipeUnavailableError
@@ -87,7 +88,10 @@ def test_fake_source_produces_expected_ndjson(monkeypatch, capsys) -> None:
     )
 
     assert exit_code == 0
-    assert capsys.readouterr().out.splitlines() == [to_json(event) for event in events]
+    assert capsys.readouterr().out.splitlines() == [
+        hello_json(),
+        *(to_json(event) for event in events),
+    ]
     assert source.closed
 
 
@@ -107,7 +111,7 @@ def test_max_frames_reaches_source_and_limits_fake_events(monkeypatch, capsys) -
 
     assert exit_code == 0
     assert received["max_frames"] == 3
-    assert len(capsys.readouterr().out.splitlines()) == 3
+    assert len(capsys.readouterr().out.splitlines()) == 4
 
 
 def test_quit_on_stdin_closes_source(monkeypatch, capsys) -> None:
@@ -122,11 +126,14 @@ def test_quit_on_stdin_closes_source(monkeypatch, capsys) -> None:
     source = SlowSource([])
     assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
     assert source.closed
-    assert capsys.readouterr().out == ""
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
 def test_stdin_controls_reach_source_between_events(monkeypatch, capsys) -> None:
-    monkeypatch.setattr("sys.stdin", io.StringIO("calibrate\ntest\npause\nresume\n"))
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO('calibrate\n{"cmd":"test"}\n{"cmd":"pause"}\nresume\n'),
+    )
 
     class SlowSource(FakeSource):
         def events(self) -> Iterator[FoveaEvent]:
@@ -137,7 +144,7 @@ def test_stdin_controls_reach_source_between_events(monkeypatch, capsys) -> None
     assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
     assert source.calibration_starts == 1
     assert source.test_starts == 1
-    assert len(capsys.readouterr().out.splitlines()) == 1
+    assert capsys.readouterr().out.splitlines()[0] == hello_json()
 
 
 @pytest.mark.parametrize(
@@ -159,7 +166,7 @@ def test_calibrate_and_test_aliases_set_source_mode(
 
     assert main([command, "--no-display"], source_factory=factory) == 0
     assert received[flag] is True
-    assert capsys.readouterr().out == ""
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
 def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
@@ -172,7 +179,7 @@ def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
 
     assert main(["run", "--ndjson", "--diagnostics"], source_factory=factory) == 0
     assert received["diagnostics"] is True
-    assert capsys.readouterr().out == ""
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
 def test_invalid_camera_exits_two_with_one_json_error(capsys) -> None:
