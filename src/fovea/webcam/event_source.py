@@ -129,6 +129,7 @@ class WebcamEventSource:
                     status=status,
                     confidence=output.confidence,
                     timestamp_ns=timestamp_ns,
+                    detail="" if output.features is None else output.features.message,
                 )
 
                 if output.features is not None and output.features.blink and not last_blink:

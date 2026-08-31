@@ -123,7 +123,7 @@ def robust_median_rows(rows: list[NDArray[np.float64]]) -> NDArray[np.float64]:
     return np.asarray(median, dtype=np.float64)
 
 
-def quality_label(count: int, min_good: int) -> str:
+def quality_label(count: float, min_good: int) -> str:
     if count >= min_good:
         return "GOOD"
     if count >= max(4, min_good // 2):

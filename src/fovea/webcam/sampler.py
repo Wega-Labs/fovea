@@ -9,17 +9,22 @@ from fovea.webcam.calibration import quality_label, robust_median_rows
 
 
 class PointCollector:
+    """Collect calibration rows while reporting poor tracking at half weight.
+
+    Only lost or blinking frames are rejected. ``POOR`` rows still advance the
+    wizard so calibration cannot starve, but each contributes 0.5 to the quality
+    score while ``FAIR`` and ``GOOD`` rows contribute 1.0.
+    """
+
     def __init__(self, needed: int, min_good: int) -> None:
         self.needed = needed
         self.min_good = min_good
         self.rows: list[NDArray[np.float64]] = []
+        self.weights: list[float] = []
         self.rejected = 0
 
     def add(self, vector: NDArray[np.float64], tracking: str, blink: bool) -> None:
         if blink or tracking == "LOST":
-            self.rejected += 1
-            return
-        if tracking == "POOR":
             self.rejected += 1
             return
         if len(self.rows) >= 5:
@@ -30,16 +35,21 @@ class PointCollector:
                 self.rejected += 1
                 return
         self.rows.append(vector)
+        self.weights.append(0.5 if tracking == "POOR" else 1.0)
 
     @property
     def count(self) -> int:
         return len(self.rows)
 
+    @property
+    def weighted_count(self) -> float:
+        return sum(self.weights)
+
     def done(self) -> bool:
         return self.count >= self.needed
 
     def quality(self) -> str:
-        return quality_label(self.count, self.min_good)
+        return quality_label(self.weighted_count, self.min_good)
 
     def median(self) -> NDArray[np.float64]:
         if not self.rows:
