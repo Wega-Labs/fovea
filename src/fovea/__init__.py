@@ -3,6 +3,7 @@
 from fovea.events import (
     Blink,
     CalibrationCue,
+    Diagnostics,
     Eye,
     Fixation,
     FoveaEvent,
@@ -19,6 +20,7 @@ from fovea.webcam import GazeEngine, GazeSettings, WebcamEventSource
 __all__ = [
     "Blink",
     "CalibrationCue",
+    "Diagnostics",
     "EventSink",
     "EventSource",
     "Eye",

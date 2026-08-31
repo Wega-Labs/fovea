@@ -15,6 +15,7 @@ from fovea.cli import main
 from fovea.events import (
     Blink,
     CalibrationCue,
+    Diagnostics,
     Eye,
     Fixation,
     FoveaEvent,
@@ -39,6 +40,7 @@ def _all_event_types() -> list[FoveaEvent]:
         Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 5),
         TrackingState(TrackingStatus.UNCERTAIN, 0.5, 6, "Move closer"),
         CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 7),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 8),
     ]
 
 
@@ -157,6 +159,19 @@ def test_calibrate_and_test_aliases_set_source_mode(
 
     assert main([command, "--no-display"], source_factory=factory) == 0
     assert received[flag] is True
+    assert capsys.readouterr().out == ""
+
+
+def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    assert main(["run", "--ndjson", "--diagnostics"], source_factory=factory) == 0
+    assert received["diagnostics"] is True
     assert capsys.readouterr().out == ""
 
 

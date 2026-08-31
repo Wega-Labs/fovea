@@ -10,6 +10,7 @@ from pathlib import Path
 from fovea.events import (
     Blink,
     CalibrationCue,
+    Diagnostics,
     Eye,
     FoveaEvent,
     GazePoint,
@@ -19,7 +20,7 @@ from fovea.events import (
 from fovea.webcam.calibration import CALIBRATION_LAYOUT
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
-from fovea.webcam.engine import GazeEngine, GazeSettings
+from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
 
 
@@ -29,6 +30,25 @@ def _tracking_status(label: str) -> TrackingStatus:
     if label in {"FAIR", "POOR"}:
         return TrackingStatus.UNCERTAIN
     return TrackingStatus.LOST
+
+
+_DIAGNOSTICS_INTERVAL_SECONDS = 0.5
+
+
+def _diagnostics_due(last_emitted: float | None, now: float) -> bool:
+    return last_emitted is None or now - last_emitted >= _DIAGNOSTICS_INTERVAL_SECONDS
+
+
+def _diagnostics_event(output: GazeOutput, timestamp_ns: int) -> Diagnostics:
+    features = output.features
+    return Diagnostics(
+        fps=output.fps,
+        latency_ms=output.latency_ms,
+        face_width=0.0 if features is None else features.face_width,
+        yaw_deg=0.0 if features is None else features.yaw_deg,
+        pitch_deg=0.0 if features is None else features.pitch_deg,
+        timestamp_ns=timestamp_ns,
+    )
 
 
 @dataclass
@@ -46,6 +66,7 @@ class WebcamEventSource:
     force_calibrate: bool = False
     force_test: bool = False
     show_calibration: bool = False
+    diagnostics: bool = False
     _camera: Webcam | None = field(default=None, init=False, repr=False)
     _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
@@ -65,6 +86,7 @@ class WebcamEventSource:
         fps = 0.0
         last_time = time.perf_counter()
         last_blink = False
+        last_diagnostics_at: float | None = None
 
         try:
             camera.connect()
@@ -94,6 +116,16 @@ class WebcamEventSource:
                         confidence=0.0,
                         timestamp_ns=timestamp_ns,
                     )
+                    if self.diagnostics and _diagnostics_due(last_diagnostics_at, now):
+                        yield Diagnostics(
+                            fps=fps,
+                            latency_ms=0.0,
+                            face_width=0.0,
+                            yaw_deg=0.0,
+                            pitch_deg=0.0,
+                            timestamp_ns=timestamp_ns,
+                        )
+                        last_diagnostics_at = now
                     frames += 1
                     continue
 
@@ -132,6 +164,10 @@ class WebcamEventSource:
                     timestamp_ns=timestamp_ns,
                     detail="" if output.features is None else output.features.message,
                 )
+
+                if self.diagnostics and _diagnostics_due(last_diagnostics_at, now):
+                    yield _diagnostics_event(output, timestamp_ns)
+                    last_diagnostics_at = now
 
                 if output.features is not None and output.features.blink and not last_blink:
                     yield Blink(

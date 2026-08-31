@@ -133,6 +133,25 @@ class CalibrationCue:
     timestamp_ns: int
 
 
+@dataclass(frozen=True, slots=True)
+class Diagnostics:
+    """Rate-limited local pipeline health measurements."""
+
+    fps: float
+    latency_ms: float
+    face_width: float
+    yaw_deg: float
+    pitch_deg: float
+    timestamp_ns: int
+
+
 type FoveaEvent = (
-    GazePoint | Fixation | Blink | Gesture | Manipulation | TrackingState | CalibrationCue
+    GazePoint
+    | Fixation
+    | Blink
+    | Gesture
+    | Manipulation
+    | TrackingState
+    | CalibrationCue
+    | Diagnostics
 )

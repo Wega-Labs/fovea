@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fovea import GazePoint, TrackingState, TrackingStatus
+from fovea import Diagnostics, GazePoint, TrackingState, TrackingStatus
 
 
 def test_gaze_point_is_immutable() -> None:
@@ -19,6 +19,12 @@ def test_tracking_detail_defaults_to_empty() -> None:
         timestamp_ns=1,
     )
     assert state.detail == ""
+
+
+def test_diagnostics_is_an_immutable_public_event() -> None:
+    diagnostics = Diagnostics(30.0, 8.2, 0.17, -18.0, 2.0, 1)
+    with pytest.raises(FrozenInstanceError):
+        diagnostics.fps = 20.0  # type: ignore[misc]
 
 
 @pytest.mark.parametrize("confidence", [-0.01, 1.01])
