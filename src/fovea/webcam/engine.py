@@ -16,10 +16,14 @@ from fovea.util import ScreenPoint, clamp01
 from fovea.webcam.calibration import (
     CALIBRATION_LAYOUT,
     CalibrationIdentity,
+    CalibrationTarget,
+    calibration_coverage,
     fit_ridge,
+    leave_one_out_error,
     load_model,
     save_model,
     uncalibrated_map,
+    validate_calibration_targets,
 )
 from fovea.webcam.features import GazeFeatures, extract_features
 from fovea.webcam.sampler import PointCollector
@@ -96,31 +100,57 @@ class GazeEngine:
         self.wizard: WizardState | None = None
         self._collectors: list[PointCollector] = []
         self._test_preds: list[tuple[float, float, float, float]] = []
+        self.targets: tuple[CalibrationTarget, ...] = CALIBRATION_LAYOUT
+        self.coverage_x, self.coverage_y = calibration_coverage(self.targets)
+        self.calibration_warning = ""
+        self.last_calibration_report: dict[str, object] = {}
         self.last_test_report: dict[str, object] = {}
 
-    def start_calibration(self) -> None:
+    def start_calibration(
+        self,
+        targets: Sequence[CalibrationTarget] | None = None,
+    ) -> None:
+        self._set_targets(CALIBRATION_LAYOUT if targets is None else targets)
         self.model = None
         self._filter.reset()
         self._last_screen = None
         self._collectors = [
             PointCollector(self.settings.samples_per_point, self.settings.min_good_samples)
-            for _ in CALIBRATION_LAYOUT
+            for _ in self.targets
         ]
+        self.last_calibration_report = {}
         self._set_wizard("calibrate", 0)
 
-    def start_gaze_test(self) -> None:
+    def start_gaze_test(
+        self,
+        targets: Sequence[CalibrationTarget] | None = None,
+    ) -> None:
+        selected = targets
+        if selected is None and self.model is not None and self.model.targets:
+            selected = self.model.targets
+        self._set_targets(CALIBRATION_LAYOUT if selected is None else selected)
         self._test_preds = []
         self._collectors = [
             PointCollector(self.settings.samples_per_point, self.settings.min_good_samples)
-            for _ in CALIBRATION_LAYOUT
+            for _ in self.targets
         ]
         self._set_wizard("test", 0)
 
+    def _set_targets(self, targets: Sequence[CalibrationTarget]) -> None:
+        self.targets = validate_calibration_targets(targets)
+        self.coverage_x, self.coverage_y = calibration_coverage(self.targets)
+        if self.coverage_x < 0.4 or self.coverage_y < 0.4:
+            self.calibration_warning = (
+                "Calibration targets cover less than 40% of the display on at least one axis."
+            )
+        else:
+            self.calibration_warning = ""
+
     def _set_wizard(self, kind: str, index: int) -> None:
-        if index >= len(CALIBRATION_LAYOUT):
+        if index >= len(self.targets):
             self.wizard = None
             return
-        target = CALIBRATION_LAYOUT[index]
+        target = self.targets[index]
         collector = self._collectors[index]
         self.wizard = WizardState(
             kind=kind,
@@ -256,12 +286,12 @@ class GazeEngine:
             )
         elif self.wizard.kind == "calibrate":
             self.wizard.instruction = (
-                f"Calibration point {self.wizard.index + 1}/{len(CALIBRATION_LAYOUT)}  "
+                f"Calibration point {self.wizard.index + 1}/{len(self.targets)}  "
                 f"Samples: {collector.count}  Quality: {collector.quality()}"
             )
         else:
             self.wizard.instruction = (
-                f"Test point {self.wizard.index + 1}/{len(CALIBRATION_LAYOUT)}  "
+                f"Test point {self.wizard.index + 1}/{len(self.targets)}  "
                 f"Samples: {collector.count}"
             )
         if not collector.done():
@@ -270,7 +300,7 @@ class GazeEngine:
             pred = self.model.predict(features)
             self._test_preds.append((self.wizard.sx, self.wizard.sy, pred[0], pred[1]))
         nxt = self.wizard.index + 1
-        if nxt >= len(CALIBRATION_LAYOUT):
+        if nxt >= len(self.targets):
             if self.wizard.kind == "calibrate":
                 self._finish_calibration()
             else:
@@ -283,7 +313,7 @@ class GazeEngine:
         xy: list[tuple[float, float]] = []
         counts: dict[str, int] = {}
         qualities: dict[str, str] = {}
-        for target, collector in zip(CALIBRATION_LAYOUT, self._collectors, strict=True):
+        for target, collector in zip(self.targets, self._collectors, strict=True):
             if collector.count == 0:
                 continue
             rows.append(collector.median())
@@ -292,8 +322,20 @@ class GazeEngine:
             counts[key] = collector.count
             qualities[key] = collector.quality()
         if len(rows) >= 3:
-            self.model = fit_ridge(rows, xy, counts, qualities, identity=self.identity)
+            self.model = fit_ridge(
+                rows,
+                xy,
+                counts,
+                qualities,
+                identity=self.identity,
+                targets=self.targets,
+            )
             save_model(self.model, self.path)
+            self.last_calibration_report = {
+                "n_points": len(rows),
+                "coverage": min(self.coverage_x, self.coverage_y),
+                "loo_error": leave_one_out_error(rows, xy),
+            }
         self.wizard = None
         self._filter.reset()
         self._last_screen = None
@@ -319,7 +361,7 @@ class GazeEngine:
         self.last_test_report = report
         self.wizard = WizardState(
             kind="test",
-            index=len(CALIBRATION_LAYOUT),
+            index=len(self.targets),
             label="done",
             sx=0.5,
             sy=0.5,

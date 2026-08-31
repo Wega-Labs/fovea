@@ -251,9 +251,13 @@ See `models/README.md` for the pinned URL and checksum. Calibration data is save
 under `data/gaze_calibration.json` by default.
 
 During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
-`x`/`y` match `CALIBRATION_LAYOUT`. Pass `show_calibration=True` to open a
-fullscreen window that draws those same targets in screen space. The window
-closes automatically when calibration finishes.
+`x`/`y` match the active target layout. The default is `CALIBRATION_LAYOUT`;
+NDJSON hosts can supply five or more display-normalized targets with the
+`calibrate` and `test` control messages. Fovea warns when their bounding box
+covers less than 40% of either display axis, stores calibration targets with
+the model, and emits `CalibrationDone` with coverage and leave-one-out error.
+Pass `show_calibration=True` to open a fullscreen window that draws the same
+targets. The window closes automatically when calibration finishes.
 
 ### CLI and host contract
 

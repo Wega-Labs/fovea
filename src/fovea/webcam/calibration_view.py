@@ -90,10 +90,14 @@ class CalibrationDisplay:
         self.fullscreen = fullscreen
         self._open = False
 
-    def show(self, wizard: WizardState) -> None:
+    def show(
+        self,
+        wizard: WizardState,
+        layout: Sequence[CalibrationTarget] = CALIBRATION_LAYOUT,
+    ) -> None:
         import cv2
 
-        frame = render_calibration_frame(self.width, self.height, wizard)
+        frame = render_calibration_frame(self.width, self.height, wizard, layout)
         if not self._open:
             cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
             if self.fullscreen:

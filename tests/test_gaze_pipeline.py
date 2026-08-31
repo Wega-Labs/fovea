@@ -9,6 +9,7 @@ import numpy as np
 from fovea.webcam.calibration import (
     CalibrationIdentity,
     CalibrationModel,
+    CalibrationTarget,
     fit_ridge,
     load_model,
     save_model,
@@ -154,6 +155,66 @@ def test_normal_desk_face_completes_calibration(tmp_path) -> None:
     assert engine.wizard is None
     assert engine.model is not None
     assert load_model(tmp_path / "desk.json", expect=identity) is not None
+
+
+def test_custom_five_target_calibration_completes_and_persists(tmp_path) -> None:
+    identity = CalibrationIdentity("window", 1440, 900, 0, 640, 480)
+    targets = (
+        CalibrationTarget("top-left", 0.1, 0.1),
+        CalibrationTarget("top-right", 0.9, 0.1),
+        CalibrationTarget("center", 0.5, 0.5),
+        CalibrationTarget("bottom-left", 0.1, 0.9),
+        CalibrationTarget("bottom-right", 0.9, 0.9),
+    )
+    path = tmp_path / "custom.json"
+    engine = GazeEngine(
+        GazeSettings(
+            calibration_path=str(path),
+            samples_per_point=1,
+            min_good_samples=1,
+            settle_frames=0,
+        ),
+        tmp_path,
+        identity,
+    )
+    engine.start_calibration(targets)
+    face = _face_with_iris(face_width=0.15)
+    for _target in targets:
+        engine.process(face, 640, 480, 1 / 30, 30.0)
+
+    assert engine.wizard is None
+    assert engine.model is not None
+    assert engine.last_calibration_report["n_points"] == 5
+    assert engine.last_calibration_report["coverage"] == 0.8
+    assert np.isfinite(engine.last_calibration_report["loo_error"])
+    loaded = load_model(path, expect=identity)
+    assert loaded is not None
+    assert loaded.targets == targets
+
+
+def test_calibration_rejects_fewer_than_five_targets(tmp_path) -> None:
+    engine = GazeEngine(GazeSettings(calibration_path=str(tmp_path / "c.json")), tmp_path)
+    targets = tuple(CalibrationTarget(str(index), 0.5, 0.5) for index in range(3))
+    with np.testing.assert_raises_regex(ValueError, "at least 5"):
+        engine.start_calibration(targets)
+
+
+def test_low_coverage_calibration_queues_warning(tmp_path) -> None:
+    from fovea.events import CalibrationWarning
+    from fovea.webcam.event_source import WebcamEventSource
+
+    targets = tuple(
+        CalibrationTarget(str(index), 0.40 + index * 0.02, 0.45 + index * 0.01)
+        for index in range(5)
+    )
+    settings = GazeSettings(calibration_path=str(tmp_path / "c.json"))
+    source = WebcamEventSource(settings, tmp_path, show_calibration=False)
+    source._engine = GazeEngine(settings, tmp_path)
+    source.start_calibration(targets)
+
+    warning = source._pending_events.popleft()
+    assert isinstance(warning, CalibrationWarning)
+    assert warning.coverage < 0.4
 
 
 def test_feature_vector_avoids_multicollinearity() -> None:

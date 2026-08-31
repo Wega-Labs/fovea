@@ -134,6 +134,25 @@ class CalibrationCue:
 
 
 @dataclass(frozen=True, slots=True)
+class CalibrationWarning:
+    """A calibration layout is usable but has weak display coverage."""
+
+    message: str
+    coverage: float
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationDone:
+    """A completed calibration fit and its camera-free validation metrics."""
+
+    n_points: int
+    coverage: float
+    loo_error: float
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
 class Diagnostics:
     """Rate-limited local pipeline health measurements."""
 
@@ -153,5 +172,7 @@ type FoveaEvent = (
     | Manipulation
     | TrackingState
     | CalibrationCue
+    | CalibrationWarning
+    | CalibrationDone
     | Diagnostics
 )
