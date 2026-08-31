@@ -667,30 +667,37 @@ first response 5 working days.
   doctor, and stable exit codes; issue #5 is closed.
 
 No later issue is reported closed. At the owner's direction, the remaining work
-was committed and pushed without opening PRs, posting issue comments, or running
-local acceptance commands:
+was first committed and pushed without local acceptance commands. Draft PRs were
+then opened as an explicitly dependency-ordered review stack; none is represented
+as verified, merge-ready, merged, or closed:
 
-| Area | Pushed branch | Tip when prepared |
-|---|---|---|
-| Landmark record/replay | `feat/17-landmark-record-replay` | `640672e` |
-| Platform-native paths | `fix/platform-paths` | `e0e2ded` |
-| Landmark timestamps | `fix/monotonic-landmark-timestamps` | `04c26f7` |
-| Diagnostics events | `feat/diagnostics-events` | `faa6866` |
-| Community health files | `docs/community-health-files` | `4e150fc` |
-| README truthfulness | `docs/readme-truthfulness` | `95bbc06` |
-| Protocol and schema | `feat/8-versioned-wire-protocol` | `2fcb49c` |
-| Calibration identity | `feat/calibration-identity` | `c82326d` |
-| Fixation and blink | `feat/fixation-blink-events` | `f02fc91` |
-| Windowed calibration | `feat/10-windowed-calibration` | `c557477` |
-| Target-aware mode | `feat/11-target-aware-mode` | `e96cd39` |
-| Privacy enforcement | `feat/27-privacy-safety-artifacts` | `6ca58a4` |
-| Benchmark suite | `feat/18-benchmark-suite` | `f8c735f` |
-| Backend seam (first half) | `feat/15-landmark-backend-seam` | `dc11dc3` |
-| TypeScript client | `feat/9-typescript-client` | this report's changeset |
+| Area | Draft PR | Branch | Tip when prepared |
+|---|---|---|---|
+| Landmark record/replay | #41 | `feat/17-landmark-record-replay` | `640672e` |
+| Platform-native paths | #42 | `fix/platform-paths` | `e0e2ded` |
+| Landmark timestamps | #43 | `fix/monotonic-landmark-timestamps` | `04c26f7` |
+| Community health files | #44 | `docs/community-health-files` | `4e150fc` |
+| README truthfulness | #45 | `docs/readme-truthfulness` | `95bbc06` |
+| Diagnostics events | #46 | `feat/diagnostics-events` | `faa6866` |
+| Protocol and schema | #47 | `feat/8-versioned-wire-protocol` | `2fcb49c` |
+| Calibration identity | #48 | `feat/calibration-identity` | `c82326d` |
+| Fixation and blink | #49 | `feat/fixation-blink-events` | `f02fc91` |
+| Windowed calibration | #50 | `feat/10-windowed-calibration` | `c557477` |
+| Target-aware mode | #51 | `feat/11-target-aware-mode` | `e96cd39` |
+| Privacy enforcement | #52 | `feat/27-privacy-safety-artifacts` | `6ca58a4` |
+| Benchmark suite | #53 | `feat/18-benchmark-suite` | `f8c735f` |
+| Backend seam (first half) | #54 | `feat/15-landmark-backend-seam` | `dc11dc3` |
+| TypeScript client | #55 | `feat/9-typescript-client` | `36af048` |
 
 The C1–C9 branches are dependency-stacked. Review and merge them in their
 dependency order; the B-series branches are independent where their histories
 show that they branch directly from `main`.
+
+Duplicate CLI PR #40 was closed as superseded by merged PR #39. `main` branch
+protection now requires the current Ubuntu and macOS CI contexts, one approving
+review, dismissal of stale reviews, and resolved conversations. It applies to
+administrators, rejects force-pushes and deletion, and restricts pushes to the
+`harshsaver` account.
 
 ### Verification and measurements
 
