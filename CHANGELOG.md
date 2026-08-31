@@ -1,0 +1,21 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- A process CLI with NDJSON output, stdin controls, stable exit codes, and environment diagnostics.
+- Cross-platform CI that opens the pinned MediaPipe graph on Ubuntu and macOS.
+
+### Changed
+
+- Pinned the working MediaPipe 0.10.x line with compatible NumPy and OpenCV ranges.
+- Made calibration viable at desk distance and surfaced tracking-quality detail to hosts.
+- Corrected the head-pose pitch convention and uncalibrated vertical mapping.
+
+[Unreleased]: https://github.com/Wega-Labs/fovea/compare/v0.1.0...HEAD

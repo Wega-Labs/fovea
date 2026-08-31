@@ -1,0 +1,43 @@
+name: Feature request
+description: Propose a focused improvement to Fovea
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or integration problem should Fovea solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe behavior and constraints, not only an implementation.
+    validations:
+      required: true
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - Engine
+        - Protocol
+        - CLI
+        - Client
+        - Documentation
+    validations:
+      required: true
+  - type: dropdown
+    id: additive
+    attributes:
+      label: Is this additive to the event contract?
+      description: Existing event meanings and required fields cannot change within a major version.
+      options:
+        - "Yes"
+        - "No"
+        - "Not applicable"
+        - "Unsure"
+    validations:
+      required: true
