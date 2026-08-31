@@ -34,7 +34,7 @@ class GazeSettings:
     one_euro_mincutoff: float = 1.2
     one_euro_beta: float = 0.02
     blink_ear: float = 0.16
-    min_face_width: float = 0.18
+    min_face_width: float = 0.12
     max_yaw_deg: float = 35.0
     samples_per_point: int = 28
     min_good_samples: int = 12

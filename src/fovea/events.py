@@ -112,6 +112,7 @@ class TrackingState:
     status: TrackingStatus
     confidence: float
     timestamp_ns: int
+    detail: str = ""
 
     def __post_init__(self) -> None:
         _validate_confidence(self.confidence)

@@ -19,6 +19,7 @@ from fovea.webcam.features import (
     GazeFeatures,
     extract_features,
 )
+from fovea.webcam.sampler import PointCollector
 from fovea.webcam.smoothing import OneEuroPoint, ema
 
 
@@ -31,13 +32,14 @@ def _face_with_iris(
     left_ny: float = 0.5,
     right_nx: float = 0.5,
     right_ny: float = 0.5,
+    face_width: float = 0.44,
 ) -> list[SimpleNamespace]:
     points = [lm(0.5, 0.5) for _ in range(478)]
     points[1] = lm(0.50, 0.52)
     points[10] = lm(0.50, 0.18)
     points[152] = lm(0.50, 0.90)
-    points[234] = lm(0.28, 0.52)
-    points[454] = lm(0.72, 0.52)
+    points[234] = lm(0.5 - face_width / 2, 0.52)
+    points[454] = lm(0.5 + face_width / 2, 0.52)
     points[291] = lm(0.58, 0.70)
     points[61] = lm(0.42, 0.70)
 
@@ -98,6 +100,55 @@ def test_normalized_iris_inside_eye_box() -> None:
     assert feats.both_eyes
     assert 0.15 < feats.iris_nx < 0.35
     assert 0.65 < feats.iris_ny < 0.85
+
+
+def test_face_distance_gate_uses_short_frame_side() -> None:
+    landscape = extract_features(
+        _face_with_iris(face_width=0.091),
+        640,
+        480,
+        blink_ear=0.16,
+        min_face_width=0.12,
+        max_yaw_deg=40,
+    )
+    widescreen = extract_features(
+        _face_with_iris(face_width=0.06825),
+        1280,
+        720,
+        blink_ear=0.16,
+        min_face_width=0.12,
+        max_yaw_deg=40,
+    )
+    assert landscape.tracking == widescreen.tracking == "GOOD"
+
+
+def test_poor_samples_advance_with_half_weight() -> None:
+    collector = PointCollector(needed=2, min_good=2)
+    vector = _features(0.5, 0.5).vector()
+    collector.add(vector, "POOR", blink=False)
+    collector.add(vector, "POOR", blink=False)
+    assert collector.done()
+    assert collector.count == 2
+    assert collector.weighted_count == 1.0
+    assert collector.quality() == "POOR"
+
+
+def test_normal_desk_face_completes_calibration(tmp_path) -> None:
+    engine = GazeEngine(
+        GazeSettings(
+            calibration_path=str(tmp_path / "desk.json"),
+            samples_per_point=1,
+            min_good_samples=1,
+            settle_frames=0,
+        ),
+        tmp_path,
+    )
+    engine.start_calibration()
+    face = _face_with_iris(face_width=0.15)
+    for _ in range(10):
+        engine.process(face, 640, 480, 1 / 30, 30.0)
+    assert engine.wizard is None
+    assert engine.model is not None
 
 
 def test_feature_vector_avoids_multicollinearity() -> None:
@@ -219,11 +270,11 @@ def test_calibration_roundtrip(tmp_path) -> None:
 
 
 def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
-    from fovea.events import GazePoint, TrackingState
+    from fovea.events import GazePoint, TrackingState, TrackingStatus
     from fovea.webcam.calibration import fit_ridge, save_model
     from fovea.webcam.event_source import WebcamEventSource
 
-    face = _face_with_iris()
+    face = _face_with_iris(face_width=0.08)
     cal_path = tmp_path / "gaze_calibration.json"
     rows = [
         _features(0.5, 0.5).vector(),
@@ -274,6 +325,13 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
     events = list(source.events())
     assert any(isinstance(event, GazePoint) for event in events)
     assert any(isinstance(event, TrackingState) for event in events)
+    poor_states = [
+        event
+        for event in events
+        if isinstance(event, TrackingState) and event.status is TrackingStatus.UNCERTAIN
+    ]
+    assert poor_states
+    assert poor_states[0].detail == "Face too far from camera"
 
 
 def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:

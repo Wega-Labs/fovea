@@ -242,6 +242,10 @@ def extract_features(
     )
     yaw, pitch, roll = estimate_head_pose(landmarks, image_w, image_h)
     width = face_width(landmarks)
+    # Landmark x coordinates are normalized by image width. Convert face width to a
+    # fraction of the shorter frame side so the distance gate is aspect-ratio invariant.
+    short_side = min(image_w, image_h)
+    width_on_short_side = width * image_w / short_side if short_side > 0 else 0.0
     blend_x, blend_y = blendshape_offset(blendshapes)
     both = left.valid and right.valid
     if both:
@@ -271,7 +275,7 @@ def extract_features(
         )
 
     blink = ear < blink_ear
-    if width < min_face_width:
+    if width_on_short_side < min_face_width:
         tracking, message = "POOR", "Face too far from camera"
     elif abs(yaw) > max_yaw_deg:
         tracking, message = "POOR", "Please face the camera"
