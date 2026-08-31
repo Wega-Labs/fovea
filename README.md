@@ -15,7 +15,9 @@ Fovea is an open-source gaze input engine that turns ordinary cameras into a new
 The first target is desktop control using a built-in webcam. The longer-term goal is a portable library that any Wega app—or any other application—can embed to add gaze as an input modality alongside touch, keyboard, pointer, gesture, and voice.
 
 > [!NOTE]
-> Fovea is at the scaffold stage. The repository contains the Python package, typed event contract, and development configuration. Camera capture, landmark inference, calibration, and operating-system control are not implemented yet, and no code from the referenced projects has been copied.
+> Fovea is early-stage. The repository contains the Python package, typed event contract,
+> and a first webcam gaze engine ported from the Silent Input research prototype.
+> Desktop pointer control and multimodal gesture fusion are still planned.
 
 ## Why Fovea
 
@@ -118,6 +120,7 @@ Blink(eye, duration)
 Gesture(kind, phase, confidence)
 Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
+CalibrationCue(label, x, y, index, total, instruction)
 ```
 
 These immutable, typed events form the first public library boundary. Semantic versioning governs their evolution.
@@ -162,6 +165,7 @@ With `uv`:
 ```bash
 uv sync --extra dev
 uv run pytest
+uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 ```
@@ -173,6 +177,7 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 pytest
+ruff format --check .
 ruff check .
 mypy
 ```
@@ -181,12 +186,62 @@ Current package layout:
 
 ```text
 src/fovea/
-├── events.py       # immutable gaze, blink, gesture, and tracking events
-├── interfaces.py   # event producer and consumer protocols
-└── py.typed        # typed-package marker
+├── events.py           # immutable gaze, blink, gesture, and tracking events
+├── interfaces.py       # event producer and consumer protocols
+├── util.py             # shared helpers (ScreenPoint, clamp01)
+├── webcam/
+│   ├── camera.py       # OpenCV webcam capture
+│   ├── landmarks.py    # MediaPipe FaceLandmarker adapter
+│   ├── features.py     # iris + head-pose gaze features
+│   ├── calibration.py  # 10-point ridge calibration
+│   ├── calibration_view.py  # on-screen calibration targets
+│   ├── model.py        # pinned FaceLandmarker URL + SHA-256
+│   ├── smoothing.py    # One Euro + EMA filters
+│   ├── engine.py       # gaze pipeline core
+│   └── event_source.py # WebcamEventSource (EventSource implementation)
+└── py.typed            # typed-package marker
+scripts/
+└── download_mediapipe_model.py
 tests/
-└── test_events.py
+├── test_events.py
+├── test_gaze_pipeline.py
+└── test_mediapipe_model.py
 ```
+
+### Webcam engine quick start
+
+```bash
+uv sync --extra dev
+python scripts/download_mediapipe_model.py
+uv run python - <<'PY'
+from pathlib import Path
+from fovea import GazeSettings, WebcamEventSource
+
+source = WebcamEventSource(
+    GazeSettings(),
+    Path("."),
+    max_frames=600,
+    show_calibration=True,
+)
+for event in source.events():
+    print(type(event).__name__, event)
+PY
+```
+
+Download the pinned MediaPipe FaceLandmarker (float16 revision 1) before running
+live webcam mode. The script verifies SHA-256 and refuses a mismatched file.
+
+```bash
+python scripts/download_mediapipe_model.py
+```
+
+See `models/README.md` for the pinned URL and checksum. Calibration data is saved
+under `data/gaze_calibration.json` by default.
+
+During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
+`x`/`y` match `CALIBRATION_LAYOUT`. Pass `show_calibration=True` to open a
+fullscreen window that draws those same targets in screen space. The window
+closes automatically when calibration finishes.
 
 ## Accuracy and reliability
 
@@ -225,16 +280,16 @@ Fovea expands access without claiming to be medical-grade or universally usable 
 
 ## Roadmap
 
-- [ ] Validate real-time eye and iris landmarks from a standard webcam
+- [x] Define the platform-neutral Fovea event API
+- [x] Validate real-time eye and iris landmarks from a standard webcam (initial engine)
+- [x] Build guided multi-point calibration (initial 10-point wizard)
+- [x] Map gaze to a stabilized screen position with head-pose compensation
 - [ ] Define repeatable accuracy, latency, jitter, and failure benchmarks
-- [ ] Build guided multi-point calibration
-- [ ] Map gaze to a stabilized screen position with head-pose compensation
 - [ ] Prototype dwell, blink, and modifier-based selection
 - [ ] Validate real-time hand landmarks alongside eye tracking
 - [ ] Prototype gaze-to-target plus pinch-to-drag interaction
 - [ ] Define the multimodal gaze-and-gesture state machine
 - [ ] Add a permissioned desktop pointer adapter
-- [ ] Define the platform-neutral Fovea event API
 - [ ] Package the engine as an embeddable library
 - [ ] Explore mobile SDK and accessibility integrations
 - [ ] Test with diverse users, cameras, lighting, eyewear, and displays
@@ -248,6 +303,9 @@ The following projects are useful references for experiments and architecture:
 - [google-ai-edge/mediapipe](https://github.com/google-ai-edge/mediapipe) — Apache-2.0, cross-platform on-device vision building blocks and face/iris landmarks.
 - [antoinelame/GazeTracking](https://github.com/antoinelame/GazeTracking) — a Python eye-tracking library with a simple integration surface.
 - [brownhci/WebGazer](https://github.com/brownhci/WebGazer) — browser-based webcam gaze estimation and calibration research.
+
+The first webcam gaze engine adapts work from Wega Labs' internal Silent Input
+research prototype and is released here under the Apache License 2.0.
 
 GitHub does not currently detect a license for the two repositories suggested as starters, so Fovea uses them as conceptual references only unless their authors clarify reuse terms. Before importing any code, model, dataset, or asset, contributors must verify its license compatibility, preserve required attribution, and document its origin. Contributors send generally useful fixes back upstream when appropriate.
 

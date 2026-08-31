@@ -48,6 +48,10 @@ python_version = "3.12"
 packages = ["fovea"]
 strict = true
 
+[[tool.mypy.overrides]]
+module = ["mediapipe", "mediapipe.*", "cv2"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
@@ -58,3 +62,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
