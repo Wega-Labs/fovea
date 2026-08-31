@@ -32,6 +32,7 @@ from fovea.protocol import (
     protocol_schema_text,
 )
 from fovea.serialize import to_json
+from fovea.webcam.backend import BACKEND_NAMES, backend_available
 from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
 from fovea.webcam.engine import GazeSettings
@@ -109,6 +110,7 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--no-display", action="store_true")
     parser.add_argument("--calibration-path", type=Path, metavar="P")
     parser.add_argument("--model", type=Path, metavar="P")
+    parser.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument(
@@ -152,7 +154,8 @@ def _build_parser() -> _JsonArgumentParser:
     bench.add_argument("--output", type=Path, default=Path("fovea-benchmark.json"))
     bench.add_argument("--yes", action="store_true", help="skip phase confirmation prompts")
 
-    commands.add_parser("doctor", help="print environment and camera diagnostics")
+    doctor = commands.add_parser("doctor", help="print environment and camera diagnostics")
+    doctor.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
     commands.add_parser("schema", help="print the protocol JSON Schema")
     return parser
 
@@ -234,8 +237,8 @@ def _close_source(source: EventSource) -> None:
         close()
 
 
-def _stream(source: EventSource) -> int:
-    print(hello_json(), flush=True)
+def _stream(source: EventSource, backend: str = "mediapipe") -> int:
+    print(hello_json(backend), flush=True)
     commands: queue.Queue[Command] = queue.Queue()
     reader = threading.Thread(target=_read_stdin, args=(commands,), daemon=True)
     reader.start()
@@ -283,6 +286,7 @@ def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSourc
         device_index=args.camera,
         width=args.width,
         height=args.height,
+        backend=args.backend,
         model_path=args.model,
         max_frames=args.max_frames,
         force_calibrate=(args.command == "calibrate" or bool(getattr(args, "calibrate", False))),
@@ -332,7 +336,7 @@ def _package_version(distribution: str) -> str:
         return "not installed"
 
 
-def _doctor() -> int:
+def _doctor(backend: str = "mediapipe") -> int:
     model_path = DEFAULT_MODEL_PATH
     try:
         verify_face_landmarker(model_path)
@@ -342,6 +346,8 @@ def _doctor() -> int:
 
     print(f"fovea={__version__}")
     print(f"python={platform.python_version()}")
+    print(f"backend={backend}")
+    print(f"backend_available={'yes' if backend_available(backend) else 'no'}")
     print(f"mediapipe={_package_version('mediapipe')}")
     print(f"opencv={_package_version('opencv-contrib-python')}")
     print(f"numpy={_package_version('numpy')}")
@@ -372,6 +378,7 @@ def _benchmark_config(args: argparse.Namespace) -> BenchmarkConfig:
         camera_name=args.camera_name,
         lighting=args.lighting,
         glasses=args.glasses,
+        backend=args.backend,
         camera_index=args.camera,
         fovea_version=__version__,
         machine=args.machine,
@@ -390,7 +397,7 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
         return 2
 
     if args.command == "doctor":
-        return _doctor()
+        return _doctor(args.backend)
     if args.command == "schema":
         print(protocol_schema_text(), end="")
         return 0
@@ -413,7 +420,7 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
             args.output.write_text(rendered, encoding="utf-8")
             print(rendered, end="")
             return 0
-        return _stream(source)
+        return _stream(source, args.backend)
     except CameraError as exc:
         _emit_error(str(exc))
         return 3

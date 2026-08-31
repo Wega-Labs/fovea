@@ -148,6 +148,24 @@ def test_max_frames_reaches_source_and_limits_fake_events(monkeypatch, capsys) -
     assert len(capsys.readouterr().out.splitlines()) == 4
 
 
+def test_backend_reaches_source_and_hello(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    exit_code = main(
+        ["run", "--ndjson", "--backend", "mediapipe"],
+        source_factory=factory,
+    )
+
+    assert exit_code == 0
+    assert received["backend"] == "mediapipe"
+    assert capsys.readouterr().out.splitlines() == [hello_json("mediapipe")]
+
+
 def test_quit_on_stdin_closes_source(monkeypatch, capsys) -> None:
     monkeypatch.setattr("sys.stdin", io.StringIO("quit\n"))
 
@@ -397,12 +415,15 @@ def test_model_error_exits_four(monkeypatch, capsys) -> None:
 
 def test_doctor_reports_versions_model_and_camera(monkeypatch, capsys) -> None:
     monkeypatch.setattr("fovea.cli.verify_face_landmarker", lambda _path: None)
+    monkeypatch.setattr("fovea.cli.backend_available", lambda _backend: True)
     monkeypatch.setattr("fovea.cli._camera_count", lambda: 2)
     monkeypatch.setattr("fovea.cli._macos_camera_authorization", lambda: "authorized")
 
     assert main(["doctor"]) == 0
     output = capsys.readouterr().out
     assert "fovea=" in output
+    assert "backend=mediapipe" in output
+    assert "backend_available=yes" in output
     assert "mediapipe=" in output
     assert "opencv=" in output
     assert "numpy=" in output

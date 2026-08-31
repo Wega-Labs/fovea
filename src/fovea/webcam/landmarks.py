@@ -1,36 +1,31 @@
-"""MediaPipe face landmarks for gaze estimation."""
+"""Compatibility session around the pluggable landmark backend boundary."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+import time
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
 
+from fovea.webcam.backend import (
+    LandmarkBackend,
+    LandmarkObservation,
+    create_landmark_backend,
+)
+from fovea.webcam.backend import (
+    MediaPipeUnavailableError as MediaPipeUnavailableError,
+)
+from fovea.webcam.backend import (
+    mediapipe_available as mediapipe_available,
+)
 from fovea.webcam.model import DEFAULT_MODEL_PATH, FACE_LANDMARKER_URL
 
 MODEL_URL = FACE_LANDMARKER_URL
 
 
-@dataclass(frozen=True)
-class FaceObservation:
-    landmarks: Sequence[Any]
-    blendshapes: dict[str, float]
-
-
-class MediaPipeUnavailableError(RuntimeError):
-    pass
-
-
-def mediapipe_available() -> bool:
-    try:
-        import mediapipe  # noqa: F401
-    except Exception:
-        return False
-    return True
+FaceObservation = LandmarkObservation
 
 
 def resolve_model_path(configured: str | Path | None) -> Path:
@@ -41,71 +36,31 @@ def resolve_model_path(configured: str | Path | None) -> Path:
 
 
 class FaceLandmarkEstimator:
-    """Adapter around MediaPipe Tasks FaceLandmarker."""
+    """BGR camera-frame session retained for source compatibility."""
 
-    def __init__(self, model_path: Path | None = None) -> None:
-        if not mediapipe_available():
-            msg = (
-                "MediaPipe is not installed or cannot be imported. "
-                "Install fovea-input with OpenCV and MediaPipe dependencies."
-            )
-            raise MediaPipeUnavailableError(msg)
+    def __init__(
+        self,
+        model_path: Path | None = None,
+        *,
+        backend: LandmarkBackend | None = None,
+    ) -> None:
         path = model_path or DEFAULT_MODEL_PATH
-        if not path.is_file():
-            msg = (
-                f"Face landmarker model not found: {path}. "
-                "Run: python scripts/download_mediapipe_model.py"
-            )
-            raise MediaPipeUnavailableError(msg)
+        self._backend: LandmarkBackend = backend or create_landmark_backend("mediapipe")
+        self._backend.open(path)
+        self._timestamp_ms = -1
 
-        from mediapipe.tasks.python.core.base_options import BaseOptions
-        from mediapipe.tasks.python.vision.core.vision_task_running_mode import (
-            VisionTaskRunningMode,
-        )
-        from mediapipe.tasks.python.vision.face_landmarker import (
-            FaceLandmarker,
-            FaceLandmarkerOptions,
-        )
-
-        options = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(path)),
-            running_mode=VisionTaskRunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5,
-            output_face_blendshapes=True,
-        )
-        self._landmarker = FaceLandmarker.create_from_options(options)
-        self._timestamp_ms = 0
+    @property
+    def backend_name(self) -> str:
+        return self._backend.name
 
     def close(self) -> None:
-        landmarker = getattr(self, "_landmarker", None)
-        if landmarker is None:
-            return
-        closer = getattr(landmarker, "close", None)
-        if closer is not None:
-            closer()
-        self._landmarker = None
+        self._backend.close()
 
     def process(self, frame_bgr: NDArray[np.uint8]) -> FaceObservation | None:
         import cv2
-        import mediapipe as mp
 
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         rgb = np.ascontiguousarray(rgb)
-        image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        self._timestamp_ms += 33
-        result = self._landmarker.detect_for_video(image, self._timestamp_ms)
-        if not result.face_landmarks:
-            return None
-        blendshapes: dict[str, float] = {}
-        if result.face_blendshapes:
-            for category in result.face_blendshapes[0]:
-                name = category.category_name or category.display_name
-                if name and category.score is not None:
-                    blendshapes[name.lower()] = float(category.score)
-        return FaceObservation(
-            landmarks=result.face_landmarks[0],
-            blendshapes=blendshapes,
-        )
+        now_ms = time.monotonic_ns() // 1_000_000
+        self._timestamp_ms = max(self._timestamp_ms + 1, now_ms)
+        return self._backend.process(cast(NDArray[np.uint8], rgb), self._timestamp_ms)

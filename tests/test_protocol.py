@@ -50,6 +50,10 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
     }
 
 
+def test_hello_reports_selected_backend() -> None:
+    assert hello_payload("fixture")["backend"] == "fixture"
+
+
 @pytest.mark.parametrize(
     "command_type",
     (CalibrateCommand, TestCommand, PauseCommand, ResumeCommand, QuitCommand),
