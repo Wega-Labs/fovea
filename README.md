@@ -318,6 +318,25 @@ drift, and inference latency in a JSON report. Use the comparable-run procedure
 in [bench/PROTOCOL.md](bench/PROTOCOL.md); verified results belong in
 [BENCHMARKS.md](BENCHMARKS.md).
 
+### Privacy-safe landmark fixtures
+
+Record normalized face landmarks and blendshape scores without retaining camera pixels:
+
+```bash
+uv run fovea record --landmarks recording.jsonl --seconds 10
+```
+
+Replay the same landmark frames through the webcam engine's shared processing path without a
+camera or model:
+
+```bash
+uv run fovea replay tests/fixtures/synthetic/frontal_30f.jsonl --ndjson
+```
+
+The fixture format and consent requirements are documented in
+[`tests/fixtures/README.md`](tests/fixtures/README.md). Fovea never writes image pixels in record
+mode.
+
 ## Accuracy and reliability
 
 Fovea measures more than whether the pointer moves. Evaluation covers:
