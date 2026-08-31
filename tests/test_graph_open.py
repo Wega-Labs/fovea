@@ -25,6 +25,7 @@ def test_real_graph_opens_on_synthetic_frame() -> None:
             (480, 640, 3),
             dtype=np.uint8,
         )
-        assert estimator.process(frame) is None
+        for _ in range(3):
+            assert estimator.process(frame) is None
     finally:
         estimator.close()

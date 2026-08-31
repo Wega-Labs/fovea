@@ -36,6 +36,12 @@ def resolve_model_path(configured: str | Path | None) -> Path:
     return path
 
 
+def next_video_timestamp_ms(previous: int) -> int:
+    """Return a real monotonic timestamp that is strictly newer than ``previous``."""
+    now_ms = time.monotonic_ns() // 1_000_000
+    return max(previous + 1, now_ms)
+
+
 class FaceLandmarkEstimator:
     """BGR camera-frame session retained for source compatibility."""
 
@@ -62,6 +68,5 @@ class FaceLandmarkEstimator:
 
         rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         rgb = np.ascontiguousarray(rgb)
-        now_ms = time.monotonic_ns() // 1_000_000
-        self._timestamp_ms = max(self._timestamp_ms + 1, now_ms)
+        self._timestamp_ms = next_video_timestamp_ms(self._timestamp_ms)
         return self._backend.process(cast(NDArray[np.uint8], rgb), self._timestamp_ms)
