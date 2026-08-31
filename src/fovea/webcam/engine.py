@@ -32,11 +32,13 @@ from fovea.webcam.smoothing import OneEuroPoint, ema
 
 @dataclass
 class GazeSettings:
-    """Pipeline settings; hosts compare Fixation.duration_ms with dwell_ms."""
+    """Gaze pipeline, target selection, and dwell thresholds."""
 
     dwell_ms: float = 500.0
     stability_ms: float = 300.0
     hysteresis: float = 0.04
+    target_expand: float = 0.03
+    snap_radius: float = 0.06
     smoothing_alpha: float = 0.35
     one_euro_mincutoff: float = 1.2
     one_euro_beta: float = 0.02

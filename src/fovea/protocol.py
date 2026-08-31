@@ -16,10 +16,14 @@ from fovea.events import (
     CalibrationDone,
     CalibrationWarning,
     Diagnostics,
+    Dwell,
+    DwellProgress,
     Fixation,
     GazePoint,
     Gesture,
     Manipulation,
+    TargetEnter,
+    TargetLeave,
     TrackingState,
 )
 from fovea.serialize import event_type_name
@@ -36,6 +40,15 @@ class CalibrationTargetSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class TargetSpec:
+    id: str
+    x: float
+    y: float
+    w: float
+    h: float
+
+
+@dataclass(frozen=True, slots=True)
 class CalibrateCommand:
     cmd: Literal["calibrate"] = "calibrate"
     targets: tuple[CalibrationTargetSpec, ...] | None = None
@@ -45,6 +58,13 @@ class CalibrateCommand:
 class TestCommand:
     cmd: Literal["test"] = "test"
     targets: tuple[CalibrationTargetSpec, ...] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TargetsCommand:
+    items: tuple[TargetSpec, ...]
+    space: Literal["display_normalized"]
+    cmd: Literal["targets"] = "targets"
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,10 +82,16 @@ class QuitCommand:
     cmd: Literal["quit"] = "quit"
 
 
-type Command = CalibrateCommand | TestCommand | PauseCommand | ResumeCommand | QuitCommand
+type Command = (
+    CalibrateCommand | TestCommand | TargetsCommand | PauseCommand | ResumeCommand | QuitCommand
+)
 
 EVENT_TYPES = (
     GazePoint,
+    TargetEnter,
+    TargetLeave,
+    DwellProgress,
+    Dwell,
     Fixation,
     Blink,
     Gesture,
@@ -79,6 +105,7 @@ EVENT_TYPES = (
 COMMAND_TYPES = (
     CalibrateCommand,
     TestCommand,
+    TargetsCommand,
     PauseCommand,
     ResumeCommand,
     QuitCommand,
@@ -104,6 +131,7 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
             "fixation",
             "blink",
             "windowed_calibration",
+            "target_aware",
         ],
     }
 
@@ -117,32 +145,41 @@ def parse_command_line(line: str) -> Command:
     text = line.strip()
     if not text:
         raise ProtocolError("control line is empty")
+    payload: dict[str, object] | None = None
     if text.startswith("{"):
         try:
-            payload = json.loads(text)
+            decoded = json.loads(text)
         except json.JSONDecodeError as exc:
             raise ProtocolError(f"invalid control JSON: {exc.msg}") from exc
-        if not isinstance(payload, dict) or "cmd" not in payload:
+        if not isinstance(decoded, dict) or "cmd" not in decoded:
             raise ProtocolError("control JSON must contain a cmd field")
-        if set(payload) - {"cmd", "targets"}:
-            raise ProtocolError("control JSON contains unsupported fields")
+        payload = decoded
         raw = payload["cmd"]
         if not isinstance(raw, str):
             raise ProtocolError("control cmd must be a string")
         name = raw.lower()
-        targets_present = "targets" in payload
-        targets = _parse_targets(payload.get("targets"))
     else:
         name = text.lower()
-        targets_present = False
-        targets = None
 
-    if name == "calibrate":
-        return CalibrateCommand(targets=targets)
-    if name == "test":
+    if name in {"calibrate", "test"}:
+        targets = None
+        if payload is not None:
+            if set(payload) - {"cmd", "targets"}:
+                raise ProtocolError("control JSON contains unsupported fields")
+            targets = _parse_calibration_targets(payload.get("targets"))
+        if name == "calibrate":
+            return CalibrateCommand(targets=targets)
         return TestCommand(targets=targets)
-    if targets_present:
-        raise ProtocolError(f"targets are not valid for the {name} command")
+
+    if name == "targets":
+        if payload is None:
+            raise ProtocolError("targets control requires JSON items and space fields")
+        if set(payload) != {"cmd", "items", "space"}:
+            raise ProtocolError("targets control requires only cmd, items, and space fields")
+        return _parse_targets_command(payload)
+
+    if payload is not None and set(payload) != {"cmd"}:
+        raise ProtocolError("control JSON contains unsupported fields")
     for command_type in (PauseCommand, ResumeCommand, QuitCommand):
         command = command_type()
         if command.cmd == name:
@@ -150,7 +187,7 @@ def parse_command_line(line: str) -> Command:
     raise ProtocolError(f"unknown control command: {name}")
 
 
-def _parse_targets(value: object) -> tuple[CalibrationTargetSpec, ...] | None:
+def _parse_calibration_targets(value: object) -> tuple[CalibrationTargetSpec, ...] | None:
     if value is None:
         return None
     if not isinstance(value, list):
@@ -179,6 +216,40 @@ def _parse_targets(value: object) -> tuple[CalibrationTargetSpec, ...] | None:
             raise ProtocolError("target coordinates must be within [0, 1]")
         targets.append(CalibrationTargetSpec(label, coordinate_x, coordinate_y))
     return tuple(targets)
+
+
+def _parse_targets_command(payload: dict[str, object]) -> TargetsCommand:
+    space = payload["space"]
+    if space != COORDINATE_SPACE:
+        raise ProtocolError("target space must be display_normalized")
+    value = payload["items"]
+    if not isinstance(value, list):
+        raise ProtocolError("target items must be an array")
+    items: list[TargetSpec] = []
+    ids: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) != {"id", "x", "y", "w", "h"}:
+            raise ProtocolError("each target item must contain id, x, y, w, and h")
+        target_id = item["id"]
+        if not isinstance(target_id, str) or not target_id.strip():
+            raise ProtocolError("target ids must be non-empty strings")
+        if target_id in ids:
+            raise ProtocolError("target ids must be unique")
+        parsed_coordinates: list[float] = []
+        for coordinate in (item["x"], item["y"], item["w"], item["h"]):
+            if not isinstance(coordinate, int | float) or isinstance(coordinate, bool):
+                raise ProtocolError("target rectangle coordinates must be numbers")
+            parsed_coordinates.append(float(coordinate))
+        x, y, w, h = parsed_coordinates
+        if not all(math.isfinite(coordinate) for coordinate in (x, y, w, h)):
+            raise ProtocolError("target rectangle coordinates must be finite")
+        if x < 0.0 or y < 0.0 or w <= 0.0 or h <= 0.0:
+            raise ProtocolError("target rectangles require non-negative x/y and positive w/h")
+        if x + w > 1.0 or y + h > 1.0:
+            raise ProtocolError("target rectangles must fit within display_normalized space")
+        items.append(TargetSpec(target_id, x, y, w, h))
+        ids.add(target_id)
+    return TargetsCommand(items=tuple(items), space="display_normalized")
 
 
 def _type_schema(annotation: object) -> dict[str, object]:
@@ -242,10 +313,21 @@ def _message_schema(message_type: type[Any], discriminator: str) -> dict[str, ob
     properties: dict[str, object] = {}
     if discriminator == "type":
         properties["type"] = {"const": event_type_name(message_type)}
+    else:
+        properties["cmd"] = {"const": _command_type_name(message_type)}
     for message_field in message_fields:
+        if discriminator == "cmd" and message_field.name == "cmd":
+            continue
         properties[message_field.name] = _type_schema(hints[message_field.name])
     if discriminator == "type":
-        required = ["type", *(message_field.name for message_field in message_fields)]
+        required = [
+            "type",
+            *(
+                message_field.name
+                for message_field in message_fields
+                if message_field.default is MISSING and message_field.default_factory is MISSING
+            ),
+        ]
     else:
         required = [
             "cmd",
@@ -265,6 +347,14 @@ def _message_schema(message_type: type[Any], discriminator: str) -> dict[str, ob
     }
 
 
+def _command_type_name(message_type: type[Any]) -> str:
+    command_hint = get_type_hints(message_type)["cmd"]
+    values = get_args(command_hint)
+    if len(values) != 1 or not isinstance(values[0], str):
+        raise TypeError(f"command type has no literal cmd: {message_type!r}")
+    return values[0]
+
+
 def protocol_schema() -> dict[str, object]:
     """Generate protocol v1 schema directly from event and command dataclasses."""
     definitions: dict[str, object] = {}
@@ -274,8 +364,7 @@ def protocol_schema() -> dict[str, object]:
         definitions[name] = _message_schema(event_type, "type")
         references.append({"$ref": f"#/$defs/{name}"})
     for command_type in COMMAND_TYPES:
-        command = command_type()
-        name = f"command_{command.cmd}"
+        name = f"command_{_command_type_name(command_type)}"
         definitions[name] = _message_schema(command_type, "cmd")
         references.append({"$ref": f"#/$defs/{name}"})
     return {

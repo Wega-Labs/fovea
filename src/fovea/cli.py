@@ -22,6 +22,7 @@ from fovea.protocol import (
     Command,
     ProtocolError,
     QuitCommand,
+    TargetsCommand,
     TestCommand,
     hello_json,
     parse_command_line,
@@ -38,6 +39,7 @@ from fovea.webcam.model import (
     ModelChecksumError,
     verify_face_landmarker,
 )
+from fovea.webcam.targeting import TargetRect
 
 type SourceFactory = Callable[..., EventSource]
 type SignalHandler = Callable[[int, FrameType | None], object] | int | None
@@ -145,20 +147,26 @@ def _drain_commands(
             if command.targets is None:
                 _source_method(source, "start_calibration")
             else:
-                targets = tuple(
+                calibration_targets = tuple(
                     CalibrationTarget(target.label, target.x, target.y)
                     for target in command.targets
                 )
-                _source_method(source, "start_calibration", targets)
+                _source_method(source, "start_calibration", calibration_targets)
         elif isinstance(command, TestCommand):
             if command.targets is None:
                 _source_method(source, "start_gaze_test")
             else:
-                targets = tuple(
+                calibration_targets = tuple(
                     CalibrationTarget(target.label, target.x, target.y)
                     for target in command.targets
                 )
-                _source_method(source, "start_gaze_test", targets)
+                _source_method(source, "start_gaze_test", calibration_targets)
+        elif isinstance(command, TargetsCommand):
+            registered_targets = tuple(
+                TargetRect(target.id, target.x, target.y, target.w, target.h)
+                for target in command.items
+            )
+            _source_method(source, "set_targets", registered_targets)
         elif command.cmd == "pause":
             paused = True
         elif command.cmd == "resume":

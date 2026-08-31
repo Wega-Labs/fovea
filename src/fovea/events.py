@@ -43,9 +43,49 @@ class GazePoint:
     y: float
     confidence: float
     timestamp_ns: int
+    target_id: str | None = None
+    snapped_x: float | None = None
+    snapped_y: float | None = None
 
     def __post_init__(self) -> None:
         _validate_confidence(self.confidence)
+
+
+@dataclass(frozen=True, slots=True)
+class TargetEnter:
+    """Gaze acquired a host-registered target."""
+
+    id: str
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class TargetLeave:
+    """Gaze left the hysteresis boundary of an active target."""
+
+    id: str
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class DwellProgress:
+    """Normalized progress toward the active target's dwell threshold."""
+
+    id: str
+    progress: float
+    timestamp_ns: int
+
+    def __post_init__(self) -> None:
+        if not 0.0 <= self.progress <= 1.0:
+            raise ValueError("progress must be between 0.0 and 1.0")
+
+
+@dataclass(frozen=True, slots=True)
+class Dwell:
+    """The active target reached the configured dwell threshold."""
+
+    id: str
+    timestamp_ns: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +206,10 @@ class Diagnostics:
 
 type FoveaEvent = (
     GazePoint
+    | TargetEnter
+    | TargetLeave
+    | DwellProgress
+    | Dwell
     | Fixation
     | Blink
     | Gesture
