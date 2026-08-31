@@ -12,6 +12,13 @@ def test_gaze_point_is_immutable() -> None:
         point.x = 0.5  # type: ignore[misc]
 
 
+def test_gaze_point_target_fields_default_to_none() -> None:
+    point = GazePoint(x=0.25, y=0.75, confidence=0.9, timestamp_ns=1)
+    assert point.target_id is None
+    assert point.snapped_x is None
+    assert point.snapped_y is None
+
+
 def test_tracking_detail_defaults_to_empty() -> None:
     state = TrackingState(
         status=TrackingStatus.ACTIVE,

@@ -117,13 +117,16 @@ The core boundary is intentional: estimation describes what the eyes are doing, 
 The scaffold exposes an initial platform-neutral event model:
 
 ```text
-GazePoint(x, y, confidence, timestamp)
+GazePoint(x, y, confidence, timestamp, target_id?, snapped_x?, snapped_y?)
+TargetEnter(id) / TargetLeave(id)
+DwellProgress(id, progress) / Dwell(id)
 Fixation(center, duration, confidence)
 Blink(eye, duration)
 Gesture(kind, phase, confidence)
 Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
 CalibrationCue(label, x, y, index, total, instruction)
+CalibrationWarning(message, coverage) / CalibrationDone(n_points, coverage, loo_error)
 ```
 
 These immutable, typed events form the first public library boundary. Semantic versioning governs their evolution.
@@ -284,6 +287,17 @@ single JSON object on stdout so non-Python hosts can parse them consistently.
 On macOS, camera permission is attributed to the responsible app that launches Fovea. A Python
 child process spawned by a terminal or desktop host uses that host application's camera grant;
 the permission prompt may therefore name the terminal or host rather than `fovea`.
+
+Hosts can also enable target-aware intent by replacing the current UI rectangles:
+
+```json
+{"cmd":"targets","items":[{"id":"save","x":0.72,"y":0.82,"w":0.2,"h":0.1}],"space":"display_normalized"}
+```
+
+Fovea keeps raw `GazePoint.x`/`y`, adds the selected `target_id` and snapped
+target-center coordinates, and emits `TargetEnter`, `TargetLeave`,
+`DwellProgress`, and one `Dwell` per continuous hold. Selection and dwell timing
+freeze while tracking is uncertain or lost.
 
 ## Accuracy and reliability
 

@@ -9,12 +9,16 @@ import pytest
 from fovea import __version__
 from fovea.cli import main
 from fovea.protocol import (
-    COMMAND_TYPES,
     EVENT_TYPES,
     PROTOCOL_VERSION,
     CalibrateCommand,
     CalibrationTargetSpec,
+    PauseCommand,
     ProtocolError,
+    QuitCommand,
+    ResumeCommand,
+    TargetsCommand,
+    TargetSpec,
     TestCommand,
     hello_payload,
     parse_command_line,
@@ -40,11 +44,15 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
             "fixation",
             "blink",
             "windowed_calibration",
+            "target_aware",
         ],
     }
 
 
-@pytest.mark.parametrize("command_type", COMMAND_TYPES)
+@pytest.mark.parametrize(
+    "command_type",
+    (CalibrateCommand, TestCommand, PauseCommand, ResumeCommand, QuitCommand),
+)
 def test_bare_and_json_controls_are_equivalent(command_type: type[object]) -> None:
     command = command_type()
     assert parse_command_line(command.cmd) == command
@@ -92,6 +100,32 @@ def test_custom_targets_parse_as_typed_gaze_test_control() -> None:
     assert len(command.targets) == 5
 
 
+def test_registered_targets_parse_as_replace_all_control() -> None:
+    line = json.dumps(
+        {
+            "cmd": "targets",
+            "items": [
+                {"id": "left", "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4},
+                {"id": "right", "x": 0.6, "y": 0.2, "w": 0.3, "h": 0.4},
+            ],
+            "space": "display_normalized",
+        }
+    )
+    assert parse_command_line(line) == TargetsCommand(
+        items=(
+            TargetSpec("left", 0.1, 0.2, 0.3, 0.4),
+            TargetSpec("right", 0.6, 0.2, 0.3, 0.4),
+        ),
+        space="display_normalized",
+    )
+
+
+def test_empty_registered_target_list_disables_target_mode() -> None:
+    command = parse_command_line('{"cmd":"targets","items":[],"space":"display_normalized"}')
+    assert isinstance(command, TargetsCommand)
+    assert command.items == ()
+
+
 @pytest.mark.parametrize(
     "line",
     [
@@ -99,6 +133,12 @@ def test_custom_targets_parse_as_typed_gaze_test_control() -> None:
         '{"cmd":"calibrate","targets":[{"label":"","x":0.1,"y":0.2}]}',
         '{"cmd":"test","targets":[{"label":"x","x":2,"y":0.2}]}',
         '{"cmd":"test","targets":[{"label":"x","x":true,"y":0.2}]}',
+        '{"cmd":"targets","items":[],"space":"pixels"}',
+        '{"cmd":"targets","items":[{"id":"x","x":0,"y":0,"w":2,"h":1}],'
+        '"space":"display_normalized"}',
+        '{"cmd":"targets","items":[{"id":"x","x":0,"y":0,"w":0.2,"h":0.2},'
+        '{"id":"x","x":0.5,"y":0.5,"w":0.2,"h":0.2}],'
+        '"space":"display_normalized"}',
     ],
 )
 def test_invalid_target_controls_are_rejected(line: str) -> None:
@@ -112,8 +152,11 @@ def test_committed_schema_matches_dataclasses() -> None:
     definitions = schema["$defs"]
     for event_type in EVENT_TYPES:
         assert event_type_name(event_type) in definitions
-    for command_type in COMMAND_TYPES:
-        assert f"command_{command_type().cmd}" in definitions
+    for command_name in ("calibrate", "test", "targets", "pause", "resume", "quit"):
+        assert f"command_{command_name}" in definitions
+    gaze_schema = definitions["gaze_point"]
+    assert "target_id" in gaze_schema["properties"]
+    assert "target_id" not in gaze_schema["required"]
 
 
 def test_schema_command_prints_committed_schema(monkeypatch, capsys) -> None:

@@ -18,6 +18,8 @@ from fovea.events import (
     CalibrationDone,
     CalibrationWarning,
     Diagnostics,
+    Dwell,
+    DwellProgress,
     Eye,
     Fixation,
     FoveaEvent,
@@ -25,6 +27,8 @@ from fovea.events import (
     Gesture,
     GesturePhase,
     Manipulation,
+    TargetEnter,
+    TargetLeave,
     TrackingState,
     TrackingStatus,
 )
@@ -33,20 +37,25 @@ from fovea.serialize import event_type_name, to_json
 from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
 from fovea.webcam.landmarks import MediaPipeUnavailableError
+from fovea.webcam.targeting import TargetRect
 
 
 def _all_event_types() -> list[FoveaEvent]:
     return [
-        GazePoint(0.25, 0.75, 0.9, 1),
-        Fixation(0.25, 0.75, 300.0, 0.8, 2),
-        Blink(Eye.BOTH, 120.0, 0.7, 3),
-        Gesture("pinch", GesturePhase.STARTED, 0.9, 4),
-        Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 5),
-        TrackingState(TrackingStatus.UNCERTAIN, 0.5, 6, "Move closer"),
-        CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 7),
-        CalibrationWarning("Target coverage is low", 0.2, 8),
-        CalibrationDone(5, 0.76, 0.08, 9),
-        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 10),
+        GazePoint(0.25, 0.75, 0.9, 1, "card-1", 0.3, 0.8),
+        TargetEnter("card-1", 2),
+        TargetLeave("card-1", 3),
+        DwellProgress("card-1", 0.5, 4),
+        Dwell("card-1", 5),
+        Fixation(0.25, 0.75, 300.0, 0.8, 6),
+        Blink(Eye.BOTH, 120.0, 0.7, 7),
+        Gesture("pinch", GesturePhase.STARTED, 0.9, 8),
+        Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 9),
+        TrackingState(TrackingStatus.UNCERTAIN, 0.5, 10, "Move closer"),
+        CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 11),
+        CalibrationWarning("Target coverage is low", 0.2, 12),
+        CalibrationDone(5, 0.76, 0.08, 13),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 14),
     ]
 
 
@@ -69,6 +78,7 @@ class FakeSource:
         self.test_starts = 0
         self.calibration_targets: tuple[CalibrationTarget, ...] | None = None
         self.test_targets: tuple[CalibrationTarget, ...] | None = None
+        self.targets: tuple[TargetRect, ...] = ()
         FakeSource.instances.append(self)
 
     def events(self) -> Iterator[FoveaEvent]:
@@ -86,6 +96,9 @@ class FakeSource:
     def start_gaze_test(self, targets: tuple[CalibrationTarget, ...] | None = None) -> None:
         self.test_starts += 1
         self.test_targets = targets
+
+    def set_targets(self, targets: tuple[TargetRect, ...]) -> None:
+        self.targets = targets
 
 
 def test_fake_source_produces_expected_ndjson(monkeypatch, capsys) -> None:
@@ -205,6 +218,27 @@ def test_too_few_calibration_targets_emit_error(monkeypatch, capsys) -> None:
         "type": "error",
         "message": "calibration requires at least 5 targets",
     }
+
+
+def test_registered_targets_reach_source(monkeypatch, capsys) -> None:
+    control = json.dumps(
+        {
+            "cmd": "targets",
+            "items": [{"id": "save", "x": 0.7, "y": 0.8, "w": 0.2, "h": 0.1}],
+            "space": "display_normalized",
+        }
+    )
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{control}\n"))
+
+    class SlowSource(FakeSource):
+        def events(self) -> Iterator[FoveaEvent]:
+            time.sleep(0.01)
+            yield GazePoint(0.5, 0.5, 1.0, 1)
+
+    source = SlowSource([])
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    assert source.targets == (TargetRect("save", 0.7, 0.8, 0.2, 0.1),)
+    assert capsys.readouterr().out.splitlines()[0] == hello_json()
 
 
 @pytest.mark.parametrize(

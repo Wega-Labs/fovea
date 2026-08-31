@@ -28,6 +28,7 @@ from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
+from fovea.webcam.targeting import TargetMatch, TargetRect, TargetTracker, validate_targets
 from fovea.webcam.temporal import BlinkDetector, FixationDetector
 
 
@@ -89,6 +90,8 @@ class WebcamEventSource:
     _test_targets: tuple[CalibrationTarget, ...] | None = field(
         default=None, init=False, repr=False
     )
+    _targets: tuple[TargetRect, ...] = field(default=(), init=False, repr=False)
+    _target_tracker: TargetTracker | None = field(default=None, init=False, repr=False)
 
     def events(self) -> Iterator[FoveaEvent]:
         self.close()
@@ -116,6 +119,14 @@ class WebcamEventSource:
             stability_ms=self.settings.stability_ms,
             radius=self.settings.hysteresis,
         )
+        target_tracker = TargetTracker(
+            dwell_ms=self.settings.dwell_ms,
+            hysteresis=self.settings.hysteresis,
+            expand=self.settings.target_expand,
+            snap_radius=self.settings.snap_radius,
+            targets=self._targets,
+        )
+        self._target_tracker = target_tracker
         last_diagnostics_at: float | None = None
         emitted_calibration_report: dict[str, object] | None = None
 
@@ -146,6 +157,7 @@ class WebcamEventSource:
                 if frame is None:
                     blink_detector.reset()
                     fixation_detector.reset()
+                    target_tracker.freeze(timestamp_ns)
                     yield TrackingState(
                         status=TrackingStatus.LOST,
                         confidence=0.0,
@@ -226,13 +238,31 @@ class WebcamEventSource:
                     if blink_event is not None:
                         yield blink_event
 
+                target_match: TargetMatch | None = None
+                target_events: tuple[FoveaEvent, ...] = ()
+                if status is TrackingStatus.ACTIVE and output.valid and output.screen is not None:
+                    target_update = target_tracker.update(
+                        output.screen.x,
+                        output.screen.y,
+                        output.confidence,
+                        timestamp_ns,
+                    )
+                    target_match = target_update.match
+                    target_events = target_update.events
+                else:
+                    target_match = target_tracker.freeze(timestamp_ns)
+
                 if output.valid and output.screen is not None:
                     yield GazePoint(
                         x=output.screen.x,
                         y=output.screen.y,
                         confidence=output.confidence,
                         timestamp_ns=timestamp_ns,
+                        target_id=(None if target_match is None else target_match.target_id),
+                        snapped_x=(None if target_match is None else target_match.snapped_x),
+                        snapped_y=(None if target_match is None else target_match.snapped_y),
                     )
+                    yield from target_events
                     fixation = fixation_detector.update(
                         output.screen.x,
                         output.screen.y,
@@ -289,6 +319,15 @@ class WebcamEventSource:
             )
         )
 
+    def set_targets(self, targets: Sequence[TargetRect]) -> None:
+        """Replace host-registered targets between frames."""
+        self._targets = validate_targets(tuple(targets))
+        if self._target_tracker is None:
+            return
+        self._pending_events.extend(
+            self._target_tracker.replace_targets(self._targets, time.time_ns())
+        )
+
     def _show_wizard(self) -> None:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:
             return
@@ -304,6 +343,7 @@ class WebcamEventSource:
         """
         self._closed = True
         self._engine = None
+        self._target_tracker = None
         display = self._display
         self._display = None
         if display is not None:

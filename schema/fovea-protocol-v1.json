@@ -7,6 +7,18 @@
       "$ref": "#/$defs/gaze_point"
     },
     {
+      "$ref": "#/$defs/target_enter"
+    },
+    {
+      "$ref": "#/$defs/target_leave"
+    },
+    {
+      "$ref": "#/$defs/dwell_progress"
+    },
+    {
+      "$ref": "#/$defs/dwell"
+    },
+    {
       "$ref": "#/$defs/fixation"
     },
     {
@@ -40,6 +52,9 @@
       "$ref": "#/$defs/command_test"
     },
     {
+      "$ref": "#/$defs/command_targets"
+    },
+    {
       "$ref": "#/$defs/command_pause"
     },
     {
@@ -68,6 +83,36 @@
         },
         "timestamp_ns": {
           "type": "integer"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapped_x": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snapped_y": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -75,6 +120,90 @@
         "x",
         "y",
         "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "target_enter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "target_enter"
+        },
+        "id": {
+          "type": "string"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "timestamp_ns"
+      ]
+    },
+    "target_leave": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "target_leave"
+        },
+        "id": {
+          "type": "string"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "timestamp_ns"
+      ]
+    },
+    "dwell_progress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "dwell_progress"
+        },
+        "id": {
+          "type": "string"
+        },
+        "progress": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "progress",
+        "timestamp_ns"
+      ]
+    },
+    "dwell": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "dwell"
+        },
+        "id": {
+          "type": "string"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "id",
         "timestamp_ns"
       ]
     },
@@ -256,8 +385,7 @@
         "type",
         "status",
         "confidence",
-        "timestamp_ns",
-        "detail"
+        "timestamp_ns"
       ]
     },
     "calibration_cue": {
@@ -480,6 +608,54 @@
       },
       "required": [
         "cmd"
+      ]
+    },
+    "command_targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "targets"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "w": {
+                "type": "number"
+              },
+              "h": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "x",
+              "y",
+              "w",
+              "h"
+            ]
+          }
+        },
+        "space": {
+          "const": "display_normalized"
+        }
+      },
+      "required": [
+        "cmd",
+        "items",
+        "space"
       ]
     },
     "command_pause": {
