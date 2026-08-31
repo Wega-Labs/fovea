@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a reproducible problem in Fovea
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and its impact.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: fovea doctor output
+      description: Run `fovea doctor` and paste its output. Remove personal paths if necessary.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 26.2, Ubuntu 24.04, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: camera
+    attributes:
+      label: Camera
+      placeholder: Built-in camera, 640x480
+  - type: input
+    id: conditions
+    attributes:
+      label: Lighting and eyewear
+      placeholder: Daylight, glasses, contacts, glare, or occlusion
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest command or landmark replay that reproduces the problem.
+    validations:
+      required: true
+  - type: checkboxes
+    id: fixture
+    attributes:
+      label: Privacy-safe fixture
+      options:
+        - label: I attached or linked a consented landmark-only fixture when one is available.
