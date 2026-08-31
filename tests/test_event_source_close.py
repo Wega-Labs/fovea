@@ -4,6 +4,8 @@ from typing import ClassVar
 
 import numpy as np
 
+from fovea.events import CalibrationDone
+from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
 from fovea.webcam.engine import GazeOutput, GazeSettings, WizardState
 from fovea.webcam.event_source import WebcamEventSource
 
@@ -52,7 +54,7 @@ class FakeCalibrationDisplay:
         self.close_calls = 0
         FakeCalibrationDisplay.instances.append(self)
 
-    def show(self, _wizard: WizardState) -> None:
+    def show(self, _wizard: WizardState, *_args) -> None:
         self.show_calls += 1
 
     def close(self) -> None:
@@ -63,8 +65,13 @@ class FinishingCalibrationEngine:
     def __init__(self, *_args, **_kwargs) -> None:
         self.model = None
         self.wizard: WizardState | None = None
+        self.targets: tuple[CalibrationTarget, ...] = CALIBRATION_LAYOUT
+        self.calibration_warning = ""
+        self.last_calibration_report: dict[str, object] = {}
 
-    def start_calibration(self) -> None:
+    def start_calibration(self, targets: tuple[CalibrationTarget, ...] | None = None) -> None:
+        if targets is not None:
+            self.targets = targets
         self.wizard = WizardState(
             kind="calibrate",
             index=0,
@@ -79,6 +86,11 @@ class FinishingCalibrationEngine:
 
     def process(self, *_args, **_kwargs) -> GazeOutput:
         self.wizard = None
+        self.last_calibration_report = {
+            "n_points": 5,
+            "coverage": 0.8,
+            "loo_error": 0.07,
+        }
         return GazeOutput(
             valid=False,
             tracking="LOST",
@@ -165,3 +177,24 @@ def test_calibration_display_closes_when_calibration_finishes(monkeypatch, tmp_p
     display = FakeCalibrationDisplay.instances[-1]
     assert display.show_calls == 1
     assert display.close_calls == 1
+
+
+def test_completed_calibration_emits_report(monkeypatch, tmp_path) -> None:
+    FakeCamera.instances.clear()
+    FakeEstimator.close_calls = 0
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", FakeCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+    monkeypatch.setattr("fovea.webcam.event_source.GazeEngine", FinishingCalibrationEngine)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        tmp_path,
+        max_frames=1,
+        show_calibration=False,
+    )
+    reports = [event for event in source.events() if isinstance(event, CalibrationDone)]
+
+    assert len(reports) == 1
+    assert reports[0].n_points == 5
+    assert reports[0].coverage == 0.8
+    assert reports[0].loo_error == 0.07

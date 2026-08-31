@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -34,6 +36,25 @@ class CalibrationTarget:
         py = round(self.y * (height - 1))
         return px, py
 
+    def to_dict(self) -> dict[str, object]:
+        return {"label": self.label, "x": self.x, "y": self.y}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> CalibrationTarget | None:
+        label = data.get("label")
+        x = data.get("x")
+        y = data.get("y")
+        if not isinstance(label, str) or not label.strip():
+            return None
+        if (
+            not isinstance(x, int | float)
+            or isinstance(x, bool)
+            or not isinstance(y, int | float)
+            or isinstance(y, bool)
+        ):
+            return None
+        return cls(label=label, x=float(x), y=float(y))
+
 
 CALIBRATION_LAYOUT: tuple[CalibrationTarget, ...] = (
     CalibrationTarget("center", 0.50, 0.50),
@@ -47,6 +68,30 @@ CALIBRATION_LAYOUT: tuple[CalibrationTarget, ...] = (
     CalibrationTarget("bottom_center", 0.50, 0.88),
     CalibrationTarget("bottom_right", 0.88, 0.88),
 )
+
+
+def validate_calibration_targets(
+    targets: Sequence[CalibrationTarget],
+) -> tuple[CalibrationTarget, ...]:
+    result = tuple(targets)
+    if len(result) < 5:
+        raise ValueError("calibration requires at least 5 targets")
+    for target in result:
+        if not target.label.strip():
+            raise ValueError("calibration target labels must be non-empty")
+        if not math.isfinite(target.x) or not math.isfinite(target.y):
+            raise ValueError("calibration target coordinates must be finite")
+        if not 0.0 <= target.x <= 1.0 or not 0.0 <= target.y <= 1.0:
+            raise ValueError("calibration target coordinates must be within [0, 1]")
+    return result
+
+
+def calibration_coverage(targets: Sequence[CalibrationTarget]) -> tuple[float, float]:
+    validated = validate_calibration_targets(targets)
+    x_values = [target.x for target in validated]
+    y_values = [target.y for target in validated]
+    return max(x_values) - min(x_values), max(y_values) - min(y_values)
+
 
 DEFAULT_RIDGE = 0.05
 
@@ -154,6 +199,7 @@ class CalibrationModel:
     version: int = CALIBRATION_VERSION
     ridge: float = DEFAULT_RIDGE
     identity: CalibrationIdentity | None = None
+    targets: tuple[CalibrationTarget, ...] = ()
 
     def predict(self, features: GazeFeatures) -> tuple[float, float]:
         vec = features.vector()
@@ -178,6 +224,8 @@ class CalibrationModel:
         }
         if self.identity is not None:
             data.update(self.identity.to_dict())
+        if self.targets:
+            data["targets"] = [target.to_dict() for target in self.targets]
         return data
 
     @classmethod
@@ -209,6 +257,22 @@ class CalibrationModel:
             identity = CalibrationIdentity.from_dict(data)
             if identity is None:
                 return None
+        targets_raw = data.get("targets", [])
+        if not isinstance(targets_raw, list):
+            return None
+        targets: list[CalibrationTarget] = []
+        for target_raw in targets_raw:
+            if not isinstance(target_raw, dict):
+                return None
+            target = CalibrationTarget.from_dict(target_raw)
+            if target is None:
+                return None
+            targets.append(target)
+        if targets:
+            try:
+                validate_calibration_targets(targets)
+            except ValueError:
+                return None
         return cls(
             coef_x=tuple(float(v) for v in coef_x_raw),
             coef_y=tuple(float(v) for v in coef_y_raw),
@@ -219,6 +283,7 @@ class CalibrationModel:
             version=version_raw,
             ridge=float(ridge_raw),
             identity=identity,
+            targets=tuple(targets),
         )
 
 
@@ -244,19 +309,23 @@ def fit_ridge(
     ridge: float = DEFAULT_RIDGE,
     *,
     identity: CalibrationIdentity | None = None,
+    targets: Sequence[CalibrationTarget] = (),
 ) -> CalibrationModel:
     if len(feature_rows) < 3:
         msg = "Need at least 3 calibration points to fit a mapping."
         raise ValueError(msg)
+    if len(feature_rows) != len(screen_xy):
+        raise ValueError("calibration features and screen targets must have equal lengths")
+    saved_targets = tuple(targets)
+    if saved_targets:
+        saved_targets = validate_calibration_targets(saved_targets)
+        if len(saved_targets) != len(feature_rows):
+            raise ValueError("stored calibration targets must match the fitted rows")
     x_mat = np.vstack(feature_rows)
     y_x = np.array([p[0] for p in screen_xy], dtype=np.float64)
     y_y = np.array([p[1] for p in screen_xy], dtype=np.float64)
-    n_feat = x_mat.shape[1]
-    penalty = ridge * np.eye(n_feat, dtype=np.float64)
-    penalty[0, 0] = 0.0
-    xtx = x_mat.T @ x_mat + penalty
-    coef_x = np.linalg.solve(xtx, x_mat.T @ y_x)
-    coef_y = np.linalg.solve(xtx, x_mat.T @ y_y)
+    coef_x = _ridge_coefficients(x_mat, y_x, ridge)
+    coef_y = _ridge_coefficients(x_mat, y_y, ridge)
     return CalibrationModel(
         coef_x=tuple(float(v) for v in coef_x),
         coef_y=tuple(float(v) for v in coef_y),
@@ -267,7 +336,53 @@ def fit_ridge(
         version=(CALIBRATION_VERSION if identity is not None else MINIMUM_CALIBRATION_VERSION),
         ridge=ridge,
         identity=identity,
+        targets=saved_targets,
     )
+
+
+def _ridge_coefficients(
+    feature_matrix: NDArray[np.float64],
+    values: NDArray[np.float64],
+    ridge: float,
+) -> NDArray[np.float64]:
+    n_features = feature_matrix.shape[1]
+    penalty = ridge * np.eye(n_features, dtype=np.float64)
+    penalty[0, 0] = 0.0
+    system = feature_matrix.T @ feature_matrix + penalty
+    return np.asarray(
+        np.linalg.solve(system, feature_matrix.T @ values),
+        dtype=np.float64,
+    )
+
+
+def leave_one_out_error(
+    feature_rows: Sequence[NDArray[np.float64]],
+    screen_xy: Sequence[tuple[float, float]],
+    ridge: float = DEFAULT_RIDGE,
+) -> float:
+    """Return mean normalized point error with each calibration target held out once."""
+    if len(feature_rows) != len(screen_xy) or len(feature_rows) < 4:
+        raise ValueError("leave-one-out validation requires at least 4 paired rows")
+    matrix = np.vstack(feature_rows)
+    expected = np.asarray(screen_xy, dtype=np.float64)
+    errors: list[float] = []
+    for index in range(len(feature_rows)):
+        train_x = np.delete(matrix, index, axis=0)
+        train_y = np.delete(expected, index, axis=0)
+        coef_x = _ridge_coefficients(train_x, train_y[:, 0], ridge)
+        coef_y = _ridge_coefficients(train_x, train_y[:, 1], ridge)
+        held_out = matrix[index]
+        predicted_x = clamp01(float(held_out @ coef_x))
+        predicted_y = clamp01(float(held_out @ coef_y))
+        errors.append(
+            float(
+                np.hypot(
+                    predicted_x - expected[index, 0],
+                    predicted_y - expected[index, 1],
+                )
+            )
+        )
+    return float(np.mean(errors))
 
 
 def uncalibrated_map(features: GazeFeatures) -> tuple[float, float]:

@@ -15,6 +15,8 @@ from fovea.cli import main
 from fovea.events import (
     Blink,
     CalibrationCue,
+    CalibrationDone,
+    CalibrationWarning,
     Diagnostics,
     Eye,
     Fixation,
@@ -28,6 +30,7 @@ from fovea.events import (
 )
 from fovea.protocol import hello_json
 from fovea.serialize import event_type_name, to_json
+from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
 from fovea.webcam.landmarks import MediaPipeUnavailableError
 
@@ -41,7 +44,9 @@ def _all_event_types() -> list[FoveaEvent]:
         Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 5),
         TrackingState(TrackingStatus.UNCERTAIN, 0.5, 6, "Move closer"),
         CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 7),
-        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 8),
+        CalibrationWarning("Target coverage is low", 0.2, 8),
+        CalibrationDone(5, 0.76, 0.08, 9),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 10),
     ]
 
 
@@ -62,6 +67,8 @@ class FakeSource:
         self.closed = False
         self.calibration_starts = 0
         self.test_starts = 0
+        self.calibration_targets: tuple[CalibrationTarget, ...] | None = None
+        self.test_targets: tuple[CalibrationTarget, ...] | None = None
         FakeSource.instances.append(self)
 
     def events(self) -> Iterator[FoveaEvent]:
@@ -70,11 +77,15 @@ class FakeSource:
     def close(self) -> None:
         self.closed = True
 
-    def start_calibration(self) -> None:
+    def start_calibration(self, targets: tuple[CalibrationTarget, ...] | None = None) -> None:
+        if targets is not None and len(targets) < 5:
+            raise ValueError("calibration requires at least 5 targets")
         self.calibration_starts += 1
+        self.calibration_targets = targets
 
-    def start_gaze_test(self) -> None:
+    def start_gaze_test(self, targets: tuple[CalibrationTarget, ...] | None = None) -> None:
         self.test_starts += 1
+        self.test_targets = targets
 
 
 def test_fake_source_produces_expected_ndjson(monkeypatch, capsys) -> None:
@@ -145,6 +156,55 @@ def test_stdin_controls_reach_source_between_events(monkeypatch, capsys) -> None
     assert source.calibration_starts == 1
     assert source.test_starts == 1
     assert capsys.readouterr().out.splitlines()[0] == hello_json()
+
+
+def test_custom_calibration_targets_reach_source(monkeypatch, capsys) -> None:
+    targets = [
+        {"label": "top-left", "x": 0.1, "y": 0.1},
+        {"label": "top-right", "x": 0.9, "y": 0.1},
+        {"label": "center", "x": 0.5, "y": 0.5},
+        {"label": "bottom-left", "x": 0.1, "y": 0.9},
+        {"label": "bottom-right", "x": 0.9, "y": 0.9},
+    ]
+    control = json.dumps({"cmd": "calibrate", "targets": targets})
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{control}\n"))
+
+    class SlowSource(FakeSource):
+        def events(self) -> Iterator[FoveaEvent]:
+            time.sleep(0.01)
+            yield GazePoint(0.5, 0.5, 1.0, 1)
+
+    source = SlowSource([])
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    assert source.calibration_targets is not None
+    assert [target.label for target in source.calibration_targets] == [
+        target["label"] for target in targets
+    ]
+    assert capsys.readouterr().out.splitlines()[0] == hello_json()
+
+
+def test_too_few_calibration_targets_emit_error(monkeypatch, capsys) -> None:
+    targets = [
+        {"label": "one", "x": 0.1, "y": 0.1},
+        {"label": "two", "x": 0.5, "y": 0.5},
+        {"label": "three", "x": 0.9, "y": 0.9},
+    ]
+    control = json.dumps({"cmd": "calibrate", "targets": targets})
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"{control}\n"))
+
+    class SlowSource(FakeSource):
+        def events(self) -> Iterator[FoveaEvent]:
+            time.sleep(0.01)
+            yield GazePoint(0.5, 0.5, 1.0, 1)
+
+    source = SlowSource([])
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 2
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == hello_json()
+    assert json.loads(lines[-1]) == {
+        "type": "error",
+        "message": "calibration requires at least 5 targets",
+    }
 
 
 @pytest.mark.parametrize(

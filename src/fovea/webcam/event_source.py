@@ -3,19 +3,27 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections import deque
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 from fovea.events import (
     CalibrationCue,
+    CalibrationDone,
+    CalibrationWarning,
     Diagnostics,
     FoveaEvent,
     GazePoint,
     TrackingState,
     TrackingStatus,
 )
-from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationIdentity
+from fovea.webcam.calibration import (
+    CalibrationIdentity,
+    CalibrationTarget,
+    validate_calibration_targets,
+)
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
@@ -74,10 +82,18 @@ class WebcamEventSource:
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
     _engine: GazeEngine | None = field(default=None, init=False, repr=False)
     _closed: bool = field(default=True, init=False, repr=False)
+    _pending_events: deque[FoveaEvent] = field(default_factory=deque, init=False, repr=False)
+    _calibration_targets: tuple[CalibrationTarget, ...] | None = field(
+        default=None, init=False, repr=False
+    )
+    _test_targets: tuple[CalibrationTarget, ...] | None = field(
+        default=None, init=False, repr=False
+    )
 
     def events(self) -> Iterator[FoveaEvent]:
         self.close()
         self._closed = False
+        self._pending_events.clear()
         camera = Webcam(self.device_index, self.width, self.height, self.mirror)
         self._camera = camera
         identity = CalibrationIdentity(
@@ -101,17 +117,20 @@ class WebcamEventSource:
             radius=self.settings.hysteresis,
         )
         last_diagnostics_at: float | None = None
+        emitted_calibration_report: dict[str, object] | None = None
 
         try:
             camera.connect()
             estimator = FaceLandmarkEstimator(model_path=resolve_model_path(self.model_path))
             self._estimator = estimator
             if self.force_calibrate or engine.model is None:
-                self.start_calibration()
+                self.start_calibration(self._calibration_targets)
             elif self.force_test:
-                self.start_gaze_test()
+                self.start_gaze_test(self._test_targets)
 
             while not self._closed and (self.max_frames is None or frames < self.max_frames):
+                while self._pending_events:
+                    yield self._pending_events.popleft()
                 now = time.perf_counter()
                 dt = max(1e-3, now - last_time)
                 last_time = now
@@ -160,14 +179,14 @@ class WebcamEventSource:
                         x=wizard.sx,
                         y=wizard.sy,
                         index=wizard.index,
-                        total=len(CALIBRATION_LAYOUT),
+                        total=len(engine.targets),
                         samples=wizard.samples,
                         needed=wizard.needed,
                         instruction=wizard.instruction,
                         timestamp_ns=timestamp_ns,
                     )
                     if self._display is not None:
-                        self._display.show(wizard)
+                        self._display.show(wizard, engine.targets)
                 elif self._display is not None:
                     display = self._display
                     self._display = None
@@ -184,6 +203,16 @@ class WebcamEventSource:
                 if self.diagnostics and _diagnostics_due(last_diagnostics_at, now):
                     yield _diagnostics_event(output, timestamp_ns)
                     last_diagnostics_at = now
+
+                calibration_report = engine.last_calibration_report
+                if calibration_report and calibration_report is not emitted_calibration_report:
+                    yield CalibrationDone(
+                        n_points=cast(int, calibration_report["n_points"]),
+                        coverage=cast(float, calibration_report["coverage"]),
+                        loo_error=cast(float, calibration_report["loo_error"]),
+                        timestamp_ns=timestamp_ns,
+                    )
+                    emitted_calibration_report = calibration_report
 
                 if output.features is None or output.tracking == "LOST":
                     blink_detector.reset()
@@ -219,30 +248,53 @@ class WebcamEventSource:
         finally:
             self.close()
 
-    def start_calibration(self) -> None:
+    def start_calibration(
+        self,
+        targets: Sequence[CalibrationTarget] | None = None,
+    ) -> None:
         """Start or restart calibration between frames."""
         self.force_calibrate = True
         self.force_test = False
+        self._calibration_targets = (
+            None if targets is None else validate_calibration_targets(targets)
+        )
         if self._engine is None:
             return
-        self._engine.start_calibration()
+        self._engine.start_calibration(self._calibration_targets)
+        self._queue_calibration_warning()
         self._show_wizard()
 
-    def start_gaze_test(self) -> None:
+    def start_gaze_test(
+        self,
+        targets: Sequence[CalibrationTarget] | None = None,
+    ) -> None:
         """Start or restart the calibrated gaze test between frames."""
         self.force_test = True
         self.force_calibrate = False
+        self._test_targets = None if targets is None else validate_calibration_targets(targets)
         if self._engine is None:
             return
-        self._engine.start_gaze_test()
+        self._engine.start_gaze_test(self._test_targets)
+        self._queue_calibration_warning()
         self._show_wizard()
+
+    def _queue_calibration_warning(self) -> None:
+        if self._engine is None or not self._engine.calibration_warning:
+            return
+        self._pending_events.append(
+            CalibrationWarning(
+                message=self._engine.calibration_warning,
+                coverage=min(self._engine.coverage_x, self._engine.coverage_y),
+                timestamp_ns=time.time_ns(),
+            )
+        )
 
     def _show_wizard(self) -> None:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:
             return
         if self._display is None:
             self._display = CalibrationDisplay(self.display_width, self.display_height)
-        self._display.show(self._engine.wizard)
+        self._display.show(self._engine.wizard, self._engine.targets)
 
     def close(self) -> None:
         """Stop landmark inference and release the webcam capture.

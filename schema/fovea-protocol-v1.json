@@ -25,6 +25,12 @@
       "$ref": "#/$defs/calibration_cue"
     },
     {
+      "$ref": "#/$defs/calibration_warning"
+    },
+    {
+      "$ref": "#/$defs/calibration_done"
+    },
+    {
       "$ref": "#/$defs/diagnostics"
     },
     {
@@ -302,6 +308,58 @@
         "timestamp_ns"
       ]
     },
+    "calibration_warning": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "calibration_warning"
+        },
+        "message": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "message",
+        "coverage",
+        "timestamp_ns"
+      ]
+    },
+    "calibration_done": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "calibration_done"
+        },
+        "n_points": {
+          "type": "integer"
+        },
+        "coverage": {
+          "type": "number"
+        },
+        "loo_error": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "n_points",
+        "coverage",
+        "loo_error",
+        "timestamp_ns"
+      ]
+    },
     "diagnostics": {
       "type": "object",
       "additionalProperties": false,
@@ -344,6 +402,37 @@
       "properties": {
         "cmd": {
           "const": "calibrate"
+        },
+        "targets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "label",
+                  "x",
+                  "y"
+                ]
+              },
+              "minItems": 5
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -356,6 +445,37 @@
       "properties": {
         "cmd": {
           "const": "test"
+        },
+        "targets": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "label",
+                  "x",
+                  "y"
+                ]
+              },
+              "minItems": 5
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [

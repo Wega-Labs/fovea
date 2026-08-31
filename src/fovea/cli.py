@@ -18,14 +18,17 @@ from typing import NoReturn
 from fovea import __version__
 from fovea.interfaces import EventSource
 from fovea.protocol import (
+    CalibrateCommand,
     Command,
     ProtocolError,
     QuitCommand,
+    TestCommand,
     hello_json,
     parse_command_line,
     protocol_schema_text,
 )
 from fovea.serialize import to_json
+from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
 from fovea.webcam.engine import GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
@@ -119,10 +122,10 @@ def _read_stdin(commands: queue.Queue[Command]) -> None:
             print(f"Ignoring invalid control command: {exc}", file=sys.stderr, flush=True)
 
 
-def _source_method(source: EventSource, name: str) -> None:
+def _source_method(source: EventSource, name: str, *args: object) -> None:
     method = getattr(source, name, None)
     if callable(method):
-        method()
+        method(*args)
     else:
         print(f"Control command unavailable: {name}", file=sys.stderr, flush=True)
 
@@ -138,10 +141,24 @@ def _drain_commands(
             command = commands.get_nowait()
         except queue.Empty:
             break
-        if command.cmd == "calibrate":
-            _source_method(source, "start_calibration")
-        elif command.cmd == "test":
-            _source_method(source, "start_gaze_test")
+        if isinstance(command, CalibrateCommand):
+            if command.targets is None:
+                _source_method(source, "start_calibration")
+            else:
+                targets = tuple(
+                    CalibrationTarget(target.label, target.x, target.y)
+                    for target in command.targets
+                )
+                _source_method(source, "start_calibration", targets)
+        elif isinstance(command, TestCommand):
+            if command.targets is None:
+                _source_method(source, "start_gaze_test")
+            else:
+                targets = tuple(
+                    CalibrationTarget(target.label, target.x, target.y)
+                    for target in command.targets
+                )
+                _source_method(source, "start_gaze_test", targets)
         elif command.cmd == "pause":
             paused = True
         elif command.cmd == "resume":

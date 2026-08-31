@@ -12,7 +12,10 @@ from fovea.protocol import (
     COMMAND_TYPES,
     EVENT_TYPES,
     PROTOCOL_VERSION,
+    CalibrateCommand,
+    CalibrationTargetSpec,
     ProtocolError,
+    TestCommand,
     hello_payload,
     parse_command_line,
     protocol_schema_text,
@@ -31,7 +34,13 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
         "backend": "mediapipe",
         "coordinate_space": "display_normalized",
         "indicator_required": True,
-        "capabilities": ["calibration_cue", "diagnostics", "fixation", "blink"],
+        "capabilities": [
+            "calibration_cue",
+            "diagnostics",
+            "fixation",
+            "blink",
+            "windowed_calibration",
+        ],
     }
 
 
@@ -47,6 +56,52 @@ def test_bare_and_json_controls_are_equivalent(command_type: type[object]) -> No
     ["", "unknown", "[]", "{}", '{"cmd":1}', '{"cmd":"quit","extra":true}'],
 )
 def test_invalid_controls_are_rejected(line: str) -> None:
+    with pytest.raises(ProtocolError):
+        parse_command_line(line)
+
+
+def test_custom_targets_parse_as_typed_calibration_control() -> None:
+    line = json.dumps(
+        {
+            "cmd": "calibrate",
+            "targets": [
+                {"label": "a", "x": 0.1, "y": 0.2},
+                {"label": "b", "x": 0.9, "y": 0.8},
+                {"label": "c", "x": 0.5, "y": 0.5},
+                {"label": "d", "x": 0.1, "y": 0.8},
+                {"label": "e", "x": 0.9, "y": 0.2},
+            ],
+        }
+    )
+    assert parse_command_line(line) == CalibrateCommand(
+        targets=(
+            CalibrationTargetSpec("a", 0.1, 0.2),
+            CalibrationTargetSpec("b", 0.9, 0.8),
+            CalibrationTargetSpec("c", 0.5, 0.5),
+            CalibrationTargetSpec("d", 0.1, 0.8),
+            CalibrationTargetSpec("e", 0.9, 0.2),
+        )
+    )
+
+
+def test_custom_targets_parse_as_typed_gaze_test_control() -> None:
+    targets = [{"label": str(index), "x": index / 4, "y": 1.0 - index / 4} for index in range(5)]
+    command = parse_command_line(json.dumps({"cmd": "test", "targets": targets}))
+    assert isinstance(command, TestCommand)
+    assert command.targets is not None
+    assert len(command.targets) == 5
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '{"cmd":"pause","targets":null}',
+        '{"cmd":"calibrate","targets":[{"label":"","x":0.1,"y":0.2}]}',
+        '{"cmd":"test","targets":[{"label":"x","x":2,"y":0.2}]}',
+        '{"cmd":"test","targets":[{"label":"x","x":true,"y":0.2}]}',
+    ],
+)
+def test_invalid_target_controls_are_rejected(line: str) -> None:
     with pytest.raises(ProtocolError):
         parse_command_line(line)
 
