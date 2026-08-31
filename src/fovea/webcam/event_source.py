@@ -17,7 +17,7 @@ from fovea.events import (
     TrackingState,
     TrackingStatus,
 )
-from fovea.webcam.calibration import CALIBRATION_LAYOUT
+from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationIdentity
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
@@ -67,6 +67,9 @@ class WebcamEventSource:
     force_test: bool = False
     show_calibration: bool = False
     diagnostics: bool = False
+    display_id: str | None = None
+    display_width: int = 1280
+    display_height: int = 720
     _camera: Webcam | None = field(default=None, init=False, repr=False)
     _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
@@ -78,7 +81,15 @@ class WebcamEventSource:
         self._closed = False
         camera = Webcam(self.device_index, self.width, self.height, self.mirror)
         self._camera = camera
-        engine = GazeEngine(self.settings, self.project_root)
+        identity = CalibrationIdentity(
+            display_id=self.display_id,
+            display_width=self.display_width,
+            display_height=self.display_height,
+            camera_index=self.device_index,
+            frame_width=self.width,
+            frame_height=self.height,
+        )
+        engine = GazeEngine(self.settings, self.project_root, identity)
         self._engine = engine
         frames = 0
         t0 = time.perf_counter()
@@ -212,7 +223,7 @@ class WebcamEventSource:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:
             return
         if self._display is None:
-            self._display = CalibrationDisplay()
+            self._display = CalibrationDisplay(self.display_width, self.display_height)
         self._display.show(self._engine.wizard)
 
     def close(self) -> None:

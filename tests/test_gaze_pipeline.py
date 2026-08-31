@@ -7,9 +7,11 @@ from types import SimpleNamespace
 import numpy as np
 
 from fovea.webcam.calibration import (
+    CalibrationIdentity,
     CalibrationModel,
     fit_ridge,
     load_model,
+    save_model,
     uncalibrated_map,
 )
 from fovea.webcam.engine import GazeEngine, GazeSettings
@@ -134,6 +136,7 @@ def test_poor_samples_advance_with_half_weight() -> None:
 
 
 def test_normal_desk_face_completes_calibration(tmp_path) -> None:
+    identity = CalibrationIdentity(None, 1280, 720, 0, 640, 480)
     engine = GazeEngine(
         GazeSettings(
             calibration_path=str(tmp_path / "desk.json"),
@@ -142,6 +145,7 @@ def test_normal_desk_face_completes_calibration(tmp_path) -> None:
             settle_frames=0,
         ),
         tmp_path,
+        identity,
     )
     engine.start_calibration()
     face = _face_with_iris(face_width=0.15)
@@ -149,6 +153,7 @@ def test_normal_desk_face_completes_calibration(tmp_path) -> None:
         engine.process(face, 640, 480, 1 / 30, 30.0)
     assert engine.wizard is None
     assert engine.model is not None
+    assert load_model(tmp_path / "desk.json", expect=identity) is not None
 
 
 def test_feature_vector_avoids_multicollinearity() -> None:
@@ -213,6 +218,41 @@ def test_v1_calibration_is_rejected(tmp_path) -> None:
     assert load_model(path) is None
 
 
+def test_v2_calibration_is_valid_but_unlabeled(tmp_path) -> None:
+    path = tmp_path / "v2.json"
+    path.write_text(
+        '{"version":2,"coef_x":[1],"coef_y":[1],"feature_names":[],"samples":{},'
+        '"quality":{},"created":""}',
+        encoding="utf-8",
+    )
+    model = load_model(path)
+    assert model is not None
+    assert model.identity is None
+
+
+def test_calibration_identity_roundtrip_and_mismatch(tmp_path) -> None:
+    identity = CalibrationIdentity("display-1", 1920, 1080, 0, 640, 480)
+    other_display = CalibrationIdentity("display-2", 1920, 1080, 0, 640, 480)
+    rows = [
+        _features(0.5, 0.5).vector(),
+        _features(0.3, 0.3).vector(),
+        _features(0.7, 0.7).vector(),
+    ]
+    model = fit_ridge(
+        rows,
+        [(0.5, 0.5), (0.2, 0.2), (0.8, 0.8)],
+        {"n": 3},
+        {"n": "GOOD"},
+        identity=identity,
+    )
+    path = tmp_path / "identified.json"
+    save_model(model, path)
+    loaded = load_model(path, expect=identity)
+    assert loaded is not None
+    assert loaded.identity == identity
+    assert load_model(path, expect=other_display) is None
+
+
 def test_uncalibrated_look_down_moves_toward_bottom() -> None:
     _sx, sy = uncalibrated_map(_features(0.5, 0.55, blend_y=0.55))
     assert sy > 0.65
@@ -249,8 +289,6 @@ def test_blink_frames_do_not_update_engine_screen(tmp_path) -> None:
 
 
 def test_calibration_roundtrip(tmp_path) -> None:
-    from fovea.webcam.calibration import save_model
-
     rows = [
         _features(0.5, 0.5).vector(),
         _features(0.3, 0.3, -0.3, -0.2).vector(),
@@ -281,7 +319,13 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
         _features(0.3, 0.3).vector(),
         _features(0.7, 0.7).vector(),
     ]
-    model = fit_ridge(rows, [(0.5, 0.5), (0.2, 0.2), (0.8, 0.8)], {"n": 3}, {"n": "GOOD"})
+    model = fit_ridge(
+        rows,
+        [(0.5, 0.5), (0.2, 0.2), (0.8, 0.8)],
+        {"n": 3},
+        {"n": "GOOD"},
+        identity=CalibrationIdentity(None, 1280, 720, 0, 640, 480),
+    )
     save_model(model, cal_path)
 
     class FakeCamera:
