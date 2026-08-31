@@ -9,6 +9,7 @@ from typing import cast
 import numpy as np
 from numpy.typing import NDArray
 
+from fovea.paths import default_model_path
 from fovea.webcam.backend import (
     LandmarkBackend,
     LandmarkObservation,
@@ -20,7 +21,7 @@ from fovea.webcam.backend import (
 from fovea.webcam.backend import (
     mediapipe_available as mediapipe_available,
 )
-from fovea.webcam.model import DEFAULT_MODEL_PATH, FACE_LANDMARKER_URL
+from fovea.webcam.model import FACE_LANDMARKER_URL
 
 MODEL_URL = FACE_LANDMARKER_URL
 
@@ -30,7 +31,7 @@ FaceObservation = LandmarkObservation
 
 def resolve_model_path(configured: str | Path | None) -> Path:
     if not configured:
-        return DEFAULT_MODEL_PATH
+        return default_model_path()
     path = Path(configured)
     return path
 
@@ -44,7 +45,7 @@ class FaceLandmarkEstimator:
         *,
         backend: LandmarkBackend | None = None,
     ) -> None:
-        path = model_path or DEFAULT_MODEL_PATH
+        path = model_path or default_model_path()
         self._backend: LandmarkBackend = backend or create_landmark_backend("mediapipe")
         self._backend.open(path)
         self._timestamp_ms = -1

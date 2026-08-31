@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
+from fovea.paths import default_calibration_path
 from fovea.util import ScreenPoint, clamp01
 from fovea.webcam.calibration import (
     CALIBRATION_LAYOUT,
@@ -48,7 +49,7 @@ class GazeSettings:
     samples_per_point: int = 28
     min_good_samples: int = 12
     settle_frames: int = 12
-    calibration_path: str = "data/gaze_calibration.json"
+    calibration_path: str | Path | None = None
     debug: bool = True
 
 
@@ -86,14 +87,18 @@ class GazeEngine:
     def __init__(
         self,
         settings: GazeSettings,
-        project_root: Path,
+        project_root: Path | None = None,
         identity: CalibrationIdentity | None = None,
     ) -> None:
         self.settings = settings
         self.identity = identity
-        self.path = Path(settings.calibration_path)
-        if not self.path.is_absolute():
-            self.path = project_root / self.path
+        del project_root
+        if settings.calibration_path is None:
+            self.path = default_calibration_path()
+        else:
+            self.path = Path(settings.calibration_path).expanduser()
+            if not self.path.is_absolute():
+                raise ValueError("calibration_path must be absolute or None")
         self.model = load_model(self.path, expect=identity)
         self._filter = OneEuroPoint(settings.one_euro_mincutoff, settings.one_euro_beta)
         self._last_screen: ScreenPoint | None = None

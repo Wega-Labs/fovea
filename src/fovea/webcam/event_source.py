@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import warnings
 from collections import deque
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
@@ -118,7 +119,7 @@ class WebcamEventSource:
     """Read webcam frames and yield typed Fovea events."""
 
     settings: GazeSettings
-    project_root: Path
+    project_root: Path | None = None
     device_index: int = 0
     width: int = 640
     height: int = 480
@@ -148,6 +149,15 @@ class WebcamEventSource:
     _targets: tuple[TargetRect, ...] = field(default=(), init=False, repr=False)
     _target_tracker: TargetTracker | None = field(default=None, init=False, repr=False)
 
+    def __post_init__(self) -> None:
+        if self.project_root is not None:
+            warnings.warn(
+                "WebcamEventSource.project_root is deprecated and no longer used; "
+                "configure an absolute GazeSettings.calibration_path instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
     def events(self) -> Iterator[FoveaEvent]:
         self.close()
         self._closed = False
@@ -162,7 +172,7 @@ class WebcamEventSource:
             frame_width=self.width,
             frame_height=self.height,
         )
-        engine = GazeEngine(self.settings, self.project_root, identity)
+        engine = GazeEngine(self.settings, identity=identity)
         self._engine = engine
         frames = 0
         t0 = time.perf_counter()

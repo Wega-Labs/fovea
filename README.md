@@ -263,8 +263,9 @@ out of the CLI choices.
 python scripts/download_mediapipe_model.py
 ```
 
-See `models/README.md` for the pinned URL and checksum. Calibration data is saved
-under `data/gaze_calibration.json` by default.
+See `models/README.md` for the pinned URL and checksum. The model is cached in the platform's
+user cache directory, and calibration is saved in the platform's user data directory. Set
+`FOVEA_MODEL_PATH` or `FOVEA_DATA_DIR` to override those locations.
 
 During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
 `x`/`y` match the active target layout. The default is `CALIBRATION_LAYOUT`;

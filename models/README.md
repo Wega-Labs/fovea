@@ -1,4 +1,6 @@
-MediaPipe FaceLandmarker model files (``*.task``) belong in this directory.
+MediaPipe FaceLandmarker model files (``*.task``) are stored in Fovea's platform-specific user
+cache directory. Set ``FOVEA_MODEL_PATH`` when an embedding host or CI job needs an explicit
+location.
 
 The download is **pinned** to Face Landmarker float16 **revision 1** (not
 ``latest``) and verified with SHA-256 before use.
@@ -12,6 +14,10 @@ The download is **pinned** to Face Landmarker float16 **revision 1** (not
 ```bash
 python scripts/download_mediapipe_model.py
 ```
+
+The command prints the resolved destination after it verifies the download. This repository's
+``models/`` directory retains only documentation; installed wheels never write into their source
+or package directory.
 
 Constants live in `src/fovea/webcam/model.py`
 (`FACE_LANDMARKER_VERSION`, `FACE_LANDMARKER_URL`, `FACE_LANDMARKER_SHA256`).

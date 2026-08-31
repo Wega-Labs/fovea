@@ -18,11 +18,10 @@ from fovea.webcam.model import (  # noqa: E402
 
 
 def main() -> int:
-    dest = ROOT / "models" / "face_landmarker.task"
     print(f"Pinned FaceLandmarker float16 revision {FACE_LANDMARKER_VERSION}")
     print(f"URL: {FACE_LANDMARKER_URL}")
     print(f"SHA-256: {FACE_LANDMARKER_SHA256}")
-    path = download_face_landmarker(dest)
+    path = download_face_landmarker()
     print(f"Verified {path} ({path.stat().st_size} bytes)")
     return 0
 
