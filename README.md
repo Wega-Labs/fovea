@@ -10,14 +10,17 @@
 
 **Your gaze is an input.**
 
+[![CI](https://github.com/Wega-Labs/fovea/actions/workflows/ci.yml/badge.svg)](https://github.com/Wega-Labs/fovea/actions/workflows/ci.yml)
+
 Fovea is an open-source gaze input engine that turns ordinary cameras into a new way to interact with computers. Look to point. Dwell or blink to select. Focus to highlight. Combine gaze with a deliberate gesture to drag, scroll, navigate, and control an interface without reaching for a mouse.
 
 The first target is desktop control using a built-in webcam. The longer-term goal is a portable library that any Wega app—or any other application—can embed to add gaze as an input modality alongside touch, keyboard, pointer, gesture, and voice.
 
 > [!NOTE]
-> Fovea is early-stage. The repository contains the Python package, typed event contract,
-> and a first webcam gaze engine ported from the Silent Input research prototype.
-> Desktop pointer control and multimodal gesture fusion are still planned.
+> Fovea is early-stage. The Python engine and CLI run on macOS, Linux, and Windows with the
+> pinned MediaPipe 0.10.x line. The typed event contract, webcam gaze engine, calibration, and
+> NDJSON process boundary are implemented. Desktop pointer control, fixation/dwell emission,
+> target awareness, and multimodal gesture fusion are still planned.
 
 ## Why Fovea
 
@@ -134,7 +137,7 @@ Fovea uses a library-first Python stack for fast vision research and a clean pat
 | Runtime | Python 3.12 |
 | Packaging | `pyproject.toml`, `src/` layout, and `uv` or standard `venv`/`pip` |
 | Camera and frames | OpenCV |
-| Face, eye, iris, and hand landmarks | MediaPipe Tasks |
+| Face, eye, and iris landmarks | MediaPipe Tasks |
 | Calibration, transforms, and filtering | NumPy |
 | Library boundary | Frozen dataclasses, enums, and typed protocols |
 | Desktop control | Native platform adapters behind the Fovea event API |
@@ -186,8 +189,10 @@ Current package layout:
 
 ```text
 src/fovea/
+├── cli.py              # NDJSON command-line process boundary
 ├── events.py           # immutable gaze, blink, gesture, and tracking events
 ├── interfaces.py       # event producer and consumer protocols
+├── serialize.py        # stable event-to-JSON serialization
 ├── util.py             # shared helpers (ScreenPoint, clamp01)
 ├── webcam/
 │   ├── camera.py       # OpenCV webcam capture
@@ -213,7 +218,15 @@ tests/
 ```bash
 uv sync --extra dev
 python scripts/download_mediapipe_model.py
-uv run python - <<'PY'
+uv run fovea run --ndjson --calibrate
+```
+
+The command opens the local webcam, shows the calibration targets, and writes one compact event
+object per stdout line. Logs and human-readable status stay on stderr.
+
+For an in-process Python integration, use the same engine through `WebcamEventSource`:
+
+```python
 from pathlib import Path
 from fovea import GazeSettings, WebcamEventSource
 
@@ -225,7 +238,6 @@ source = WebcamEventSource(
 )
 for event in source.events():
     print(type(event).__name__, event)
-PY
 ```
 
 Download the pinned MediaPipe FaceLandmarker (float16 revision 1) before running
@@ -242,6 +254,32 @@ During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
 `x`/`y` match `CALIBRATION_LAYOUT`. Pass `show_calibration=True` to open a
 fullscreen window that draws those same targets in screen space. The window
 closes automatically when calibration finishes.
+
+### CLI and host contract
+
+`GazePoint.x` and `GazePoint.y` use display-normalized coordinates in `[0, 1]`, with `(0, 0)` at
+the display's top-left and `(1, 1)` at its bottom-right. Calibration is per display; a host must
+not reuse coefficients for a different display geometry.
+
+An embedding host can use `--no-display` and render every `CalibrationCue` itself at the cue's
+normalized `x`/`y`. The host remains responsible for a visible camera/tracking indicator and for
+deciding whether an event may control anything.
+
+While `fovea run` is active, send one control word per stdin line:
+
+- `calibrate` restarts calibration;
+- `test` starts the calibrated gaze test;
+- `pause` suppresses stdout events without stopping local capture;
+- `resume` resumes stdout events;
+- `quit` closes the source and exits cleanly.
+
+The process exits `0` on normal completion or signal-driven shutdown, `2` for usage or
+configuration errors, `3` for camera errors, and `4` for model/runtime errors. Fatal errors are a
+single JSON object on stdout so non-Python hosts can parse them consistently.
+
+On macOS, camera permission is attributed to the responsible app that launches Fovea. A Python
+child process spawned by a terminal or desktop host uses that host application's camera grant;
+the permission prompt may therefore name the terminal or host rather than `fovea`.
 
 ## Accuracy and reliability
 
@@ -272,7 +310,9 @@ An eye tracker observes a face continuously and can reveal sensitive behavioral 
 - require explicit confirmation before destructive or security-sensitive actions
 - collect no analytics by default
 
-Applications embedding Fovea receive the minimum event data they need—not unrestricted camera access.
+Applications embedding Fovea receive the minimum event data they need—not unrestricted camera
+access. See [PRIVACY.md](PRIVACY.md) for the data flow and host responsibilities. Security and
+privacy vulnerabilities should be reported privately according to [SECURITY.md](SECURITY.md).
 
 ## Accessibility principles
 
@@ -323,6 +363,8 @@ Fovea is in the research and design stage. Early contributions are especially us
 - accessible interaction design and user testing
 
 Open an issue with a focused proposal before starting a large implementation.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, required gates, camera-free fixtures, and pull
+request expectations. Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
