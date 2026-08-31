@@ -39,6 +39,12 @@ dev = [
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
 ]
+macos = [
+  "pyobjc-framework-AVFoundation>=10,<13; sys_platform == 'darwin'",
+]
+
+[project.scripts]
+fovea = "fovea.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fovea"]

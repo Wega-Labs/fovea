@@ -44,10 +44,12 @@ class WebcamEventSource:
     model_path: str | Path | None = None
     max_frames: int | None = None
     force_calibrate: bool = False
+    force_test: bool = False
     show_calibration: bool = False
     _camera: Webcam | None = field(default=None, init=False, repr=False)
     _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
+    _engine: GazeEngine | None = field(default=None, init=False, repr=False)
     _closed: bool = field(default=True, init=False, repr=False)
 
     def events(self) -> Iterator[FoveaEvent]:
@@ -56,6 +58,7 @@ class WebcamEventSource:
         camera = Webcam(self.device_index, self.width, self.height, self.mirror)
         self._camera = camera
         engine = GazeEngine(self.settings, self.project_root)
+        self._engine = engine
         frames = 0
         t0 = time.perf_counter()
         frame_count = 0
@@ -68,11 +71,9 @@ class WebcamEventSource:
             estimator = FaceLandmarkEstimator(model_path=resolve_model_path(self.model_path))
             self._estimator = estimator
             if self.force_calibrate or engine.model is None:
-                engine.start_calibration()
-                if self.show_calibration:
-                    self._display = CalibrationDisplay()
-                    if engine.wizard is not None:
-                        self._display.show(engine.wizard)
+                self.start_calibration()
+            elif self.force_test:
+                self.start_gaze_test()
 
             while not self._closed and (self.max_frames is None or frames < self.max_frames):
                 now = time.perf_counter()
@@ -153,6 +154,31 @@ class WebcamEventSource:
         finally:
             self.close()
 
+    def start_calibration(self) -> None:
+        """Start or restart calibration between frames."""
+        self.force_calibrate = True
+        self.force_test = False
+        if self._engine is None:
+            return
+        self._engine.start_calibration()
+        self._show_wizard()
+
+    def start_gaze_test(self) -> None:
+        """Start or restart the calibrated gaze test between frames."""
+        self.force_test = True
+        self.force_calibrate = False
+        if self._engine is None:
+            return
+        self._engine.start_gaze_test()
+        self._show_wizard()
+
+    def _show_wizard(self) -> None:
+        if not self.show_calibration or self._engine is None or self._engine.wizard is None:
+            return
+        if self._display is None:
+            self._display = CalibrationDisplay()
+        self._display.show(self._engine.wizard)
+
     def close(self) -> None:
         """Stop landmark inference and release the webcam capture.
 
@@ -160,6 +186,7 @@ class WebcamEventSource:
         MediaStream tracks: ``VideoCapture.release()`` ends the camera session.
         """
         self._closed = True
+        self._engine = None
         display = self._display
         self._display = None
         if display is not None:
