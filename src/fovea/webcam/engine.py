@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.util import ScreenPoint, clamp01
 from fovea.webcam.calibration import (
@@ -269,7 +270,7 @@ class GazeEngine:
         self._set_wizard(self.wizard.kind, nxt)
 
     def _finish_calibration(self) -> None:
-        rows: list[np.ndarray] = []
+        rows: list[NDArray[np.float64]] = []
         xy: list[tuple[float, float]] = []
         counts: dict[str, int] = {}
         qualities: dict[str, str] = {}

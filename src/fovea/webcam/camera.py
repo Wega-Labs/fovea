@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 
 class CameraError(RuntimeError):
@@ -34,7 +35,7 @@ class Webcam:
             raise CameraError(msg)
         self._capture = capture
 
-    def read(self) -> np.ndarray | None:
+    def read(self) -> NDArray[np.uint8] | None:
         import cv2
 
         if self._capture is None:

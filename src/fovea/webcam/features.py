@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.util import clamp01
 
@@ -78,7 +79,7 @@ class GazeFeatures:
     tracking: str
     message: str
 
-    def vector(self) -> np.ndarray:
+    def vector(self) -> NDArray[np.float64]:
         return np.array(
             [
                 1.0,
