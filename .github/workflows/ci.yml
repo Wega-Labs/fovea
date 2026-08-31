@@ -18,6 +18,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with: { python-version: "3.12" }
 
+      - name: Enforce source network boundary
+        run: python scripts/check_no_network.py src
+
       - name: Install dependencies
         run: uv sync --frozen --extra dev
 

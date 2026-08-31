@@ -329,8 +329,11 @@ An eye tracker observes a face continuously and can reveal sensitive behavioral 
 - collect no analytics by default
 
 Applications embedding Fovea receive the minimum event data they need—not unrestricted camera
-access. See [PRIVACY.md](PRIVACY.md) for the data flow and host responsibilities. Security and
-privacy vulnerabilities should be reported privately according to [SECURITY.md](SECURITY.md).
+access.
+
+See [PRIVACY.md](PRIVACY.md) for the data boundary, threat model, diagnostic
+retention policy, and host obligations. Security reports use the private channel
+in [SECURITY.md](SECURITY.md).
 
 ## Accessibility principles
 
