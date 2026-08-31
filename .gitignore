@@ -12,6 +12,8 @@ __pycache__/
 build/
 dist/
 htmlcov/
+node_modules/
+*.tsbuildinfo
 fovea-benchmark.json
 data/
 models/*.task

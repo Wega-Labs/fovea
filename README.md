@@ -222,6 +222,10 @@ tests/
 ├── test_events.py
 ├── test_gaze_pipeline.py
 └── test_mediapipe_model.py
+packages/
+└── fovea-client/       # zero-runtime-dependency Node/Electron client
+examples/
+└── electron-host/      # overlay, dwell, and host-rendered calibration
 ```
 
 ### Webcam engine quick start
@@ -258,6 +262,12 @@ Live commands accept `--backend mediapipe`; the selected backend is repeated in
 the first `hello` line and by `fovea doctor --backend mediapipe`. The explicit
 flag makes backend selection stable for hosts while keeping unsupported adapters
 out of the CLI choices.
+
+Node and Electron hosts can use the zero-runtime-dependency TypeScript source in
+[`packages/fovea-client`](packages/fovea-client). It validates the handshake,
+frames bounded NDJSON, maps process failures, coalesces gaze events, converts
+display coordinates, and drives host-rendered calibration. The intended package
+name is `@wega-labs/fovea-client`; npm publication remains a maintainer action.
 
 ```bash
 python scripts/download_mediapipe_model.py

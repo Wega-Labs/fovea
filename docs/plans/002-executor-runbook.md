@@ -649,3 +649,72 @@ first response 5 working days.
 | C7 | #18 | #18 (code); live run = owner |
 | C8 | #15 | comment (first half) |
 | C9 | #9 | #9 (publish = owner) |
+
+## Execution report 2026-08-31
+
+### Merged pull requests and closed issues
+
+- [#34](https://github.com/Wega-Labs/fovea/pull/34) pinned the compatible MediaPipe
+  line and added real-graph coverage; issue #2 is closed.
+- [#35](https://github.com/Wega-Labs/fovea/pull/35) added the macOS CI leg and model
+  cache. The deliberately failing guard proof was reviewed separately in closed,
+  unmerged PR [#36](https://github.com/Wega-Labs/fovea/pull/36).
+- [#37](https://github.com/Wega-Labs/fovea/pull/37) fixed desk-distance calibration
+  gates and exposed tracking detail; issue #3 is closed.
+- [#38](https://github.com/Wega-Labs/fovea/pull/38) fixed the head-pose convention;
+  issue #4 is closed.
+- [#39](https://github.com/Wega-Labs/fovea/pull/39) added the NDJSON CLI, controls,
+  doctor, and stable exit codes; issue #5 is closed.
+
+No later issue is reported closed. At the owner's direction, the remaining work
+was committed and pushed without opening PRs, posting issue comments, or running
+local acceptance commands:
+
+| Area | Pushed branch | Tip when prepared |
+|---|---|---|
+| Landmark record/replay | `feat/17-landmark-record-replay` | `640672e` |
+| Platform-native paths | `fix/platform-paths` | `e0e2ded` |
+| Landmark timestamps | `fix/monotonic-landmark-timestamps` | `04c26f7` |
+| Diagnostics events | `feat/diagnostics-events` | `faa6866` |
+| Community health files | `docs/community-health-files` | `4e150fc` |
+| README truthfulness | `docs/readme-truthfulness` | `95bbc06` |
+| Protocol and schema | `feat/8-versioned-wire-protocol` | `2fcb49c` |
+| Calibration identity | `feat/calibration-identity` | `c82326d` |
+| Fixation and blink | `feat/fixation-blink-events` | `f02fc91` |
+| Windowed calibration | `feat/10-windowed-calibration` | `c557477` |
+| Target-aware mode | `feat/11-target-aware-mode` | `e96cd39` |
+| Privacy enforcement | `feat/27-privacy-safety-artifacts` | `6ca58a4` |
+| Benchmark suite | `feat/18-benchmark-suite` | `f8c735f` |
+| Backend seam (first half) | `feat/15-landmark-backend-seam` | `dc11dc3` |
+| TypeScript client | `feat/9-typescript-client` | this report's changeset |
+
+The C1–C9 branches are dependency-stacked. Review and merge them in their
+dependency order; the B-series branches are independent where their histories
+show that they branch directly from `main`.
+
+### Verification and measurements
+
+The executor did not run the deferred branch test suites, type checkers, package
+builds, generated-file commands, live benchmark, or Appendix A camera smoke test
+after the owner's instruction to leave execution for later. Consequently there
+is no new test count, live FPS/latency/pitch measurement, three-machine benchmark,
+or Electron end-to-end result to report. The branches contain camera-free tests
+and CI definitions, but their acceptance boxes must remain unticked until those
+commands actually pass.
+
+No new evidence was collected that contradicts the measured facts in §0.2. This
+is an absence of measurement, not a revalidation of those numbers.
+
+### Remaining owner and release actions
+
+- Run the per-branch acceptance commands and merge the dependency stack; close
+  issues only through the corresponding verified PRs.
+- Create/configure the PyPI project and trusted publisher, and create the npm
+  organization/access needed for `@wega-labs/fovea-client`.
+- Supply the Code of Conduct contact address and confirm the intended CODEOWNERS.
+- Run and publish the live benchmark on three real machine/camera combinations.
+- Have a second person perform fresh-clone macOS and Linux checks, including the
+  macOS camera permission and Gatekeeper path.
+- Record the 60-second engine plus Electron demo.
+- Only after those checks, update the changelog and create the appropriate
+  release tag; no tag or package publication was performed in this execution.

@@ -1,0 +1,16 @@
+{
+  "name": "fovea-electron-host-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "@wega-labs/fovea-client": "file:../../packages/fovea-client"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6"
+  }
+}

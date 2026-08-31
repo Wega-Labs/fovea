@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fovea Electron host</title>
+    <style>
+      :root { color-scheme: dark; font: 16px system-ui; background: #10141c; color: #eef3ff; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; overflow: hidden; }
+      main { width: min(680px, 80vw); display: grid; gap: 24px; text-align: center; }
+      button { padding: 18px 24px; border: 1px solid #6685ff; border-radius: 12px; color: inherit;
+        background: linear-gradient(90deg, #344681 var(--dwell, 0%), #1b2332 0); font: inherit; }
+      #camera { position: fixed; top: 16px; left: 16px; color: #ff9a9a; }
+      #camera::before { content: ""; display: inline-block; width: 10px; height: 10px;
+        margin-right: 8px; border-radius: 50%; background: #ff4d5e; }
+      #gaze, #cue { position: fixed; inset: 0 auto auto 0; pointer-events: none;
+        border-radius: 50%; }
+      #gaze { width: 18px; height: 18px; border: 2px solid #85f7d3; }
+      #cue { width: 28px; height: 28px; background: #ffd166; box-shadow: 0 0 24px #ffd166; }
+      .meta { color: #aab6cc; }
+    </style>
+  </head>
+  <body>
+    <div id="camera">Camera active</div>
+    <div id="gaze" hidden></div>
+    <div id="cue" hidden></div>
+    <main>
+      <h1>Fovea Electron host</h1>
+      <p>Look at the demo target and hold your gaze to activate it.</p>
+      <button id="demo-action" data-fovea-target="demo-action">Dwell target</button>
+      <button id="calibrate">Calibrate in this window</button>
+      <div class="meta"><span id="status">starting</span> · tracking
+        <span id="tracking">unknown</span></div>
+    </main>
+    <script type="module" src="renderer.mjs"></script>
+  </body>
+</html>
