@@ -7,16 +7,28 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
+        with: { python-version: "3.12" }
 
       - name: Install dependencies
         run: uv sync --frozen --extra dev
+
+      - name: Cache FaceLandmarker model
+        uses: actions/cache@v4
+        with:
+          path: models/face_landmarker.task
+          key: face-landmarker-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+
+      - name: Download model (verified by SHA-256)
+        run: uv run python scripts/download_mediapipe_model.py
 
       - name: Format
         run: uv run ruff format --check .
