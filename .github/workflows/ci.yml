@@ -39,5 +39,10 @@ jobs:
       - name: Type check
         run: uv run mypy
 
+      - name: Verify generated protocol schema
+        run: |
+          uv run python scripts/generate_protocol_schema.py
+          git diff --exit-code -- schema/fovea-protocol-v1.json
+
       - name: Tests
         run: uv run pytest

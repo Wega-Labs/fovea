@@ -17,6 +17,14 @@ from typing import NoReturn
 
 from fovea import __version__
 from fovea.interfaces import EventSource
+from fovea.protocol import (
+    Command,
+    ProtocolError,
+    QuitCommand,
+    hello_json,
+    parse_command_line,
+    protocol_schema_text,
+)
 from fovea.serialize import to_json
 from fovea.webcam.camera import CameraError
 from fovea.webcam.engine import GazeSettings
@@ -85,6 +93,7 @@ def _build_parser() -> _JsonArgumentParser:
     _add_capture_arguments(test, require_ndjson=False)
 
     commands.add_parser("doctor", help="print environment and camera diagnostics")
+    commands.add_parser("schema", help="print the protocol JSON Schema")
     return parser
 
 
@@ -97,11 +106,14 @@ def _emit_error(message: str) -> None:
     )
 
 
-def _read_stdin(commands: queue.Queue[str]) -> None:
+def _read_stdin(commands: queue.Queue[Command]) -> None:
     for line in sys.stdin:
-        command = line.strip().lower()
-        if command:
-            commands.put(command)
+        if not line.strip():
+            continue
+        try:
+            commands.put(parse_command_line(line))
+        except ProtocolError as exc:
+            print(f"Ignoring invalid control command: {exc}", file=sys.stderr, flush=True)
 
 
 def _source_method(source: EventSource, name: str) -> None:
@@ -114,7 +126,7 @@ def _source_method(source: EventSource, name: str) -> None:
 
 def _drain_commands(
     source: EventSource,
-    commands: queue.Queue[str],
+    commands: queue.Queue[Command],
     paused: bool,
 ) -> tuple[bool, bool]:
     should_quit = False
@@ -123,18 +135,16 @@ def _drain_commands(
             command = commands.get_nowait()
         except queue.Empty:
             break
-        if command == "calibrate":
+        if command.cmd == "calibrate":
             _source_method(source, "start_calibration")
-        elif command == "test":
+        elif command.cmd == "test":
             _source_method(source, "start_gaze_test")
-        elif command == "pause":
+        elif command.cmd == "pause":
             paused = True
-        elif command == "resume":
+        elif command.cmd == "resume":
             paused = False
-        elif command == "quit":
+        elif command.cmd == "quit":
             should_quit = True
-        else:
-            print(f"Ignoring unknown control command: {command}", file=sys.stderr, flush=True)
     return paused, should_quit
 
 
@@ -145,12 +155,13 @@ def _close_source(source: EventSource) -> None:
 
 
 def _stream(source: EventSource) -> int:
-    commands: queue.Queue[str] = queue.Queue()
+    print(hello_json(), flush=True)
+    commands: queue.Queue[Command] = queue.Queue()
     reader = threading.Thread(target=_read_stdin, args=(commands,), daemon=True)
     reader.start()
 
     def request_stop(_signum: int, _frame: FrameType | None) -> None:
-        commands.put("quit")
+        commands.put(QuitCommand())
 
     previous_handlers: dict[signal.Signals, SignalHandler] = {}
     if threading.current_thread() is threading.main_thread():
@@ -270,6 +281,9 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
 
     if args.command == "doctor":
         return _doctor()
+    if args.command == "schema":
+        print(protocol_schema_text(), end="")
+        return 0
 
     source: EventSource | None = None
     try:

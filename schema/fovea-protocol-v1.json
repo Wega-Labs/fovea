@@ -1,0 +1,402 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Wega-Labs/fovea/schema/fovea-protocol-v1.json",
+  "title": "Fovea protocol v1 events and controls",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/gaze_point"
+    },
+    {
+      "$ref": "#/$defs/fixation"
+    },
+    {
+      "$ref": "#/$defs/blink"
+    },
+    {
+      "$ref": "#/$defs/gesture"
+    },
+    {
+      "$ref": "#/$defs/manipulation"
+    },
+    {
+      "$ref": "#/$defs/tracking_state"
+    },
+    {
+      "$ref": "#/$defs/calibration_cue"
+    },
+    {
+      "$ref": "#/$defs/diagnostics"
+    },
+    {
+      "$ref": "#/$defs/command_calibrate"
+    },
+    {
+      "$ref": "#/$defs/command_test"
+    },
+    {
+      "$ref": "#/$defs/command_pause"
+    },
+    {
+      "$ref": "#/$defs/command_resume"
+    },
+    {
+      "$ref": "#/$defs/command_quit"
+    }
+  ],
+  "$defs": {
+    "gaze_point": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "gaze_point"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "x",
+        "y",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "fixation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "fixation"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "x",
+        "y",
+        "duration_ms",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "blink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "blink"
+        },
+        "eye": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "both"
+          ]
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "eye",
+        "duration_ms",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "gesture": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "gesture"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "started",
+            "updated",
+            "ended",
+            "cancelled"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "kind",
+        "phase",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "manipulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "manipulation"
+        },
+        "target_id": {
+          "type": "string"
+        },
+        "phase": {
+          "type": "string",
+          "enum": [
+            "started",
+            "updated",
+            "ended",
+            "cancelled"
+          ]
+        },
+        "delta_x": {
+          "type": "number"
+        },
+        "delta_y": {
+          "type": "number"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "rotation_degrees": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "target_id",
+        "phase",
+        "delta_x",
+        "delta_y",
+        "scale",
+        "rotation_degrees",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "tracking_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "tracking_state"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "uncertain",
+            "lost"
+          ]
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        },
+        "detail": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "confidence",
+        "timestamp_ns",
+        "detail"
+      ]
+    },
+    "calibration_cue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "calibration_cue"
+        },
+        "label": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "samples": {
+          "type": "integer"
+        },
+        "needed": {
+          "type": "integer"
+        },
+        "instruction": {
+          "type": "string"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "label",
+        "x",
+        "y",
+        "index",
+        "total",
+        "samples",
+        "needed",
+        "instruction",
+        "timestamp_ns"
+      ]
+    },
+    "diagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "diagnostics"
+        },
+        "fps": {
+          "type": "number"
+        },
+        "latency_ms": {
+          "type": "number"
+        },
+        "face_width": {
+          "type": "number"
+        },
+        "yaw_deg": {
+          "type": "number"
+        },
+        "pitch_deg": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "fps",
+        "latency_ms",
+        "face_width",
+        "yaw_deg",
+        "pitch_deg",
+        "timestamp_ns"
+      ]
+    },
+    "command_calibrate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "calibrate"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "command_test": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "test"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "command_pause": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "pause"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "command_resume": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "resume"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    },
+    "command_quit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "quit"
+        }
+      },
+      "required": [
+        "cmd"
+      ]
+    }
+  }
+}
