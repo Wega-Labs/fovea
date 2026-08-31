@@ -67,10 +67,12 @@ class WebcamEventSource:
             camera.connect()
             estimator = FaceLandmarkEstimator(model_path=resolve_model_path(self.model_path))
             self._estimator = estimator
-            if self.show_calibration:
-                self._display = CalibrationDisplay()
             if self.force_calibrate or engine.model is None:
                 engine.start_calibration()
+                if self.show_calibration:
+                    self._display = CalibrationDisplay()
+                    if engine.wizard is not None:
+                        self._display.show(engine.wizard)
 
             while not self._closed and (self.max_frames is None or frames < self.max_frames):
                 now = time.perf_counter()
@@ -117,6 +119,10 @@ class WebcamEventSource:
                     )
                     if self._display is not None:
                         self._display.show(wizard)
+                elif self._display is not None:
+                    display = self._display
+                    self._display = None
+                    display.close()
 
                 status = _tracking_status(output.tracking)
                 yield TrackingState(

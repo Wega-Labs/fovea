@@ -1,7 +1,13 @@
 """Calibration target layout and on-screen rendering."""
 
+import cv2
+
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
-from fovea.webcam.calibration_view import render_calibration_frame
+from fovea.webcam.calibration_view import (
+    WINDOW_NAME,
+    CalibrationDisplay,
+    render_calibration_frame,
+)
 from fovea.webcam.engine import WizardState
 
 
@@ -45,3 +51,32 @@ def test_render_highlights_active_layout_target() -> None:
         ix, iy = idle.pixel_xy(width, height)
         idle_pixel = frame[iy, ix]
         assert int(idle_pixel.sum()) < int(pixel.sum())
+
+
+def test_display_uses_fullscreen_coordinates(monkeypatch) -> None:
+    calls: list[tuple[object, ...]] = []
+    monkeypatch.setattr(cv2, "namedWindow", lambda *args: calls.append(("named", *args)))
+    monkeypatch.setattr(cv2, "setWindowProperty", lambda *args: calls.append(("set", *args)))
+    monkeypatch.setattr(cv2, "imshow", lambda *args: calls.append(("show", *args)))
+    monkeypatch.setattr(cv2, "waitKey", lambda *_args: -1)
+
+    active = CALIBRATION_LAYOUT[0]
+    wizard = WizardState(
+        kind="calibrate",
+        index=0,
+        label=active.label,
+        sx=active.x,
+        sy=active.y,
+        samples=0,
+        needed=28,
+        quality="POOR",
+        instruction="Look at the point.",
+    )
+    CalibrationDisplay().show(wizard)
+
+    assert (
+        "set",
+        WINDOW_NAME,
+        cv2.WND_PROP_FULLSCREEN,
+        cv2.WINDOW_FULLSCREEN,
+    ) in calls

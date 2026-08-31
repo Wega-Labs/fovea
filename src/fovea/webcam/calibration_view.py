@@ -75,11 +75,18 @@ def _draw_hud(frame: np.ndarray, wizard: WizardState, total: int) -> None:
 
 
 class CalibrationDisplay:
-    """Fullscreen OpenCV window showing engine calibration targets."""
+    """OpenCV window showing engine calibration targets in screen space."""
 
-    def __init__(self, width: int = 1280, height: int = 720) -> None:
+    def __init__(
+        self,
+        width: int = 1280,
+        height: int = 720,
+        *,
+        fullscreen: bool = True,
+    ) -> None:
         self.width = width
         self.height = height
+        self.fullscreen = fullscreen
         self._open = False
 
     def show(self, wizard: WizardState) -> None:
@@ -88,7 +95,14 @@ class CalibrationDisplay:
         frame = render_calibration_frame(self.width, self.height, wizard)
         if not self._open:
             cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-            cv2.resizeWindow(WINDOW_NAME, self.width, self.height)
+            if self.fullscreen:
+                cv2.setWindowProperty(
+                    WINDOW_NAME,
+                    cv2.WND_PROP_FULLSCREEN,
+                    cv2.WINDOW_FULLSCREEN,
+                )
+            else:
+                cv2.resizeWindow(WINDOW_NAME, self.width, self.height)
             self._open = True
         cv2.imshow(WINDOW_NAME, frame)
         cv2.waitKey(1)

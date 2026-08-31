@@ -217,7 +217,12 @@ uv run python - <<'PY'
 from pathlib import Path
 from fovea import GazeSettings, WebcamEventSource
 
-source = WebcamEventSource(GazeSettings(), Path("."), max_frames=30)
+source = WebcamEventSource(
+    GazeSettings(),
+    Path("."),
+    max_frames=600,
+    show_calibration=True,
+)
 for event in source.events():
     print(type(event).__name__, event)
 PY
@@ -235,7 +240,8 @@ under `data/gaze_calibration.json` by default.
 
 During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
 `x`/`y` match `CALIBRATION_LAYOUT`. Pass `show_calibration=True` to open a
-window that draws those same targets at the current screen resolution.
+fullscreen window that draws those same targets in screen space. The window
+closes automatically when calibration finishes.
 
 ## Accuracy and reliability
 
@@ -297,6 +303,9 @@ The following projects are useful references for experiments and architecture:
 - [google-ai-edge/mediapipe](https://github.com/google-ai-edge/mediapipe) — Apache-2.0, cross-platform on-device vision building blocks and face/iris landmarks.
 - [antoinelame/GazeTracking](https://github.com/antoinelame/GazeTracking) — a Python eye-tracking library with a simple integration surface.
 - [brownhci/WebGazer](https://github.com/brownhci/WebGazer) — browser-based webcam gaze estimation and calibration research.
+
+The first webcam gaze engine adapts work from Wega Labs' internal Silent Input
+research prototype and is released here under the Apache License 2.0.
 
 GitHub does not currently detect a license for the two repositories suggested as starters, so Fovea uses them as conceptual references only unless their authors clarify reuse terms. Before importing any code, model, dataset, or asset, contributors must verify its license compatibility, preserve required attribution, and document its origin. Contributors send generally useful fixes back upstream when appropriate.
 
