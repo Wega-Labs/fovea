@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from fovea import __version__
 from fovea.cli import main
 from fovea.protocol import (
     COMMAND_TYPES,
@@ -26,11 +27,11 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
     assert hello == {
         "type": "hello",
         "protocol": PROTOCOL_VERSION,
-        "fovea": "0.1.0",
+        "fovea": __version__,
         "backend": "mediapipe",
         "coordinate_space": "display_normalized",
         "indicator_required": True,
-        "capabilities": ["calibration_cue", "diagnostics"],
+        "capabilities": ["calibration_cue", "diagnostics", "fixation", "blink"],
     }
 
 
