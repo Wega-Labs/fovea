@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.webcam.calibration import quality_label, robust_median_rows
 
@@ -11,10 +12,10 @@ class PointCollector:
     def __init__(self, needed: int, min_good: int) -> None:
         self.needed = needed
         self.min_good = min_good
-        self.rows: list[np.ndarray] = []
+        self.rows: list[NDArray[np.float64]] = []
         self.rejected = 0
 
-    def add(self, vector: np.ndarray, tracking: str, blink: bool) -> None:
+    def add(self, vector: NDArray[np.float64], tracking: str, blink: bool) -> None:
         if blink or tracking == "LOST":
             self.rejected += 1
             return
@@ -40,7 +41,7 @@ class PointCollector:
     def quality(self) -> str:
         return quality_label(self.count, self.min_good)
 
-    def median(self) -> np.ndarray:
+    def median(self) -> NDArray[np.float64]:
         if not self.rows:
             msg = "No samples"
             raise ValueError(msg)

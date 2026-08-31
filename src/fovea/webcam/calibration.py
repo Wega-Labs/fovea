@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.util import clamp01
 from fovea.webcam.features import FEATURE_NAMES, GazeFeatures
@@ -116,7 +117,7 @@ class CalibrationModel:
         )
 
 
-def robust_median_rows(rows: list[np.ndarray]) -> np.ndarray:
+def robust_median_rows(rows: list[NDArray[np.float64]]) -> NDArray[np.float64]:
     stacked = np.vstack(rows)
     median = np.median(stacked, axis=0)
     return np.asarray(median, dtype=np.float64)
@@ -131,7 +132,7 @@ def quality_label(count: int, min_good: int) -> str:
 
 
 def fit_ridge(
-    feature_rows: list[np.ndarray],
+    feature_rows: list[NDArray[np.float64]],
     screen_xy: list[tuple[float, float]],
     sample_counts: dict[str, int],
     qualities: dict[str, str],

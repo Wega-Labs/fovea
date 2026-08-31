@@ -6,6 +6,7 @@ import contextlib
 from collections.abc import Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
 from fovea.webcam.engine import WizardState
@@ -18,21 +19,21 @@ def render_calibration_frame(
     height: int,
     wizard: WizardState,
     layout: Sequence[CalibrationTarget] = CALIBRATION_LAYOUT,
-) -> np.ndarray:
+) -> NDArray[np.uint8]:
     """Draw every layout target; highlight the one ``wizard`` is currently sampling."""
     frame = np.full((height, width, 3), 18, dtype=np.uint8)
     active = CalibrationTarget(wizard.label, wizard.sx, wizard.sy)
+    _draw_hud(frame, wizard, len(layout))
 
     for target in layout:
         is_active = target.label == active.label and target.x == active.x and target.y == active.y
         _draw_target(frame, target, active=is_active)
 
     _draw_target(frame, active, active=True)
-    _draw_hud(frame, wizard, len(layout))
     return frame
 
 
-def _draw_target(frame: np.ndarray, target: CalibrationTarget, *, active: bool) -> None:
+def _draw_target(frame: NDArray[np.uint8], target: CalibrationTarget, *, active: bool) -> None:
     import cv2
 
     height, width = frame.shape[:2]
@@ -53,7 +54,7 @@ def _draw_target(frame: np.ndarray, target: CalibrationTarget, *, active: bool) 
     cv2.circle(frame, (x, y), 2, (90, 90, 90), -1, cv2.LINE_AA)
 
 
-def _draw_hud(frame: np.ndarray, wizard: WizardState, total: int) -> None:
+def _draw_hud(frame: NDArray[np.uint8], wizard: WizardState, total: int) -> None:
     import cv2
 
     height, width = frame.shape[:2]

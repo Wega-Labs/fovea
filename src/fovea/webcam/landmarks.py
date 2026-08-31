@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from fovea.webcam.model import DEFAULT_MODEL_PATH, FACE_LANDMARKER_URL
 
@@ -87,7 +88,7 @@ class FaceLandmarkEstimator:
             closer()
         self._landmarker = None
 
-    def process(self, frame_bgr: np.ndarray) -> FaceObservation | None:
+    def process(self, frame_bgr: NDArray[np.uint8]) -> FaceObservation | None:
         import cv2
         import mediapipe as mp
 
