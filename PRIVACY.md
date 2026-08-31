@@ -31,6 +31,10 @@ writes the contributor-selected destination and never includes pixels. Recorded
 landmarks are biometric-adjacent data; contributors must record only themselves,
 provide informed consent, and never include minors or third parties.
 
+The guided benchmark is another explicit-output workflow. Its JSON report stores
+derived errors, point coordinates, device metadata, and timing measurements but
+no frames or landmarks. Review machine labels and output paths before publishing.
+
 ## Diagnostics and retention
 
 Diagnostics are off by default. `--diagnostics` adds rate-limited health events

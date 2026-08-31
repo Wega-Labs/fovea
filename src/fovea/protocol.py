@@ -20,6 +20,7 @@ from fovea.events import (
     DwellProgress,
     Fixation,
     GazePoint,
+    GazeTestDone,
     Gesture,
     Manipulation,
     TargetEnter,
@@ -100,6 +101,7 @@ EVENT_TYPES = (
     CalibrationCue,
     CalibrationWarning,
     CalibrationDone,
+    GazeTestDone,
     Diagnostics,
 )
 COMMAND_TYPES = (
@@ -132,6 +134,7 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
             "blink",
             "windowed_calibration",
             "target_aware",
+            "gaze_test_report",
         ],
     }
 

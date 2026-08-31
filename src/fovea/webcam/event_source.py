@@ -16,6 +16,8 @@ from fovea.events import (
     Diagnostics,
     FoveaEvent,
     GazePoint,
+    GazeTestDone,
+    GazeTestPoint,
     TrackingState,
     TrackingStatus,
 )
@@ -55,6 +57,57 @@ def _diagnostics_event(output: GazeOutput, timestamp_ns: int) -> Diagnostics:
         face_width=0.0 if features is None else features.face_width,
         yaw_deg=0.0 if features is None else features.yaw_deg,
         pitch_deg=0.0 if features is None else features.pitch_deg,
+        timestamp_ns=timestamp_ns,
+    )
+
+
+def _gaze_test_event(report: dict[str, object], timestamp_ns: int) -> GazeTestDone | None:
+    points_raw = report.get("points")
+    n_points = report.get("n")
+    mean_error = report.get("mean_error")
+    median_error = report.get("median_error")
+    max_error = report.get("max_error")
+    aggregates = (n_points, mean_error, median_error, max_error)
+    if any(not isinstance(value, int | float) or isinstance(value, bool) for value in aggregates):
+        return None
+    if not isinstance(points_raw, list):
+        return None
+    points: list[GazeTestPoint] = []
+    for point_raw in points_raw:
+        if not isinstance(point_raw, dict):
+            return None
+        expected = point_raw.get("expected")
+        predicted = point_raw.get("predicted")
+        error = point_raw.get("error")
+        if not isinstance(expected, list) or len(expected) != 2:
+            return None
+        if not isinstance(predicted, list) or len(predicted) != 2:
+            return None
+        coordinates: list[float] = []
+        for value in (*expected, *predicted, error):
+            if not isinstance(value, int | float) or isinstance(value, bool):
+                return None
+            coordinates.append(float(value))
+        expected_x, expected_y, predicted_x, predicted_y, point_error = coordinates
+        points.append(
+            GazeTestPoint(
+                expected_x=expected_x,
+                expected_y=expected_y,
+                predicted_x=predicted_x,
+                predicted_y=predicted_y,
+                error=point_error,
+            )
+        )
+    assert isinstance(n_points, int | float)
+    assert isinstance(mean_error, int | float)
+    assert isinstance(median_error, int | float)
+    assert isinstance(max_error, int | float)
+    return GazeTestDone(
+        n_points=int(n_points),
+        mean_error=float(mean_error),
+        median_error=float(median_error),
+        max_error=float(max_error),
+        points=tuple(points),
         timestamp_ns=timestamp_ns,
     )
 
@@ -129,6 +182,7 @@ class WebcamEventSource:
         self._target_tracker = target_tracker
         last_diagnostics_at: float | None = None
         emitted_calibration_report: dict[str, object] | None = None
+        emitted_test_report: dict[str, object] | None = None
 
         try:
             camera.connect()
@@ -225,6 +279,14 @@ class WebcamEventSource:
                         timestamp_ns=timestamp_ns,
                     )
                     emitted_calibration_report = calibration_report
+
+                test_report = engine.last_test_report
+                if test_report and test_report is not emitted_test_report:
+                    test_event = _gaze_test_event(test_report, timestamp_ns)
+                    if test_event is not None:
+                        engine.resume_after_gaze_test()
+                        yield test_event
+                        emitted_test_report = test_report
 
                 if output.features is None or output.tracking == "LOST":
                     blink_detector.reset()

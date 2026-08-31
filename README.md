@@ -127,6 +127,7 @@ Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
 CalibrationCue(label, x, y, index, total, instruction)
 CalibrationWarning(message, coverage) / CalibrationDone(n_points, coverage, loo_error)
+GazeTestDone(n_points, median_error, points)
 ```
 
 These immutable, typed events form the first public library boundary. Semantic versioning governs their evolution.
@@ -299,6 +300,12 @@ target-center coordinates, and emits `TargetEnter`, `TargetLeave`,
 `DwellProgress`, and one `Dwell` per continuous hold. Selection and dwell timing
 freeze while tracking is uncertain or lost.
 
+Live performance is measured with the guided `fovea bench` command. It records
+accuracy at 50/60/75 cm, two-second fixation jitter, yaw robustness, ten-minute
+drift, and inference latency in a JSON report. Use the comparable-run procedure
+in [bench/PROTOCOL.md](bench/PROTOCOL.md); verified results belong in
+[BENCHMARKS.md](BENCHMARKS.md).
+
 ## Accuracy and reliability
 
 Fovea measures more than whether the pointer moves. Evaluation covers:
@@ -345,7 +352,7 @@ Fovea expands access without claiming to be medical-grade or universally usable 
 - [x] Validate real-time eye and iris landmarks from a standard webcam (initial engine)
 - [x] Build guided multi-point calibration (initial 10-point wizard)
 - [x] Map gaze to a stabilized screen position with head-pose compensation
-- [ ] Define repeatable accuracy, latency, jitter, and failure benchmarks
+- [x] Define repeatable accuracy, latency, jitter, and failure benchmarks
 - [ ] Prototype dwell, blink, and modifier-based selection
 - [ ] Validate real-time hand landmarks alongside eye tracking
 - [ ] Prototype gaze-to-target plus pinch-to-drag interaction

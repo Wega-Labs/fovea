@@ -451,6 +451,29 @@ def test_diagnostics_rate_limit_is_two_hz() -> None:
     assert _diagnostics_due(10.0, 10.5)
 
 
+def test_gaze_test_report_converts_to_typed_event() -> None:
+    from fovea.webcam.event_source import _gaze_test_event
+
+    report: dict[str, object] = {
+        "n": 1,
+        "mean_error": 0.05,
+        "median_error": 0.05,
+        "max_error": 0.05,
+        "points": [
+            {
+                "expected": [0.5, 0.5],
+                "predicted": [0.54, 0.53],
+                "error": 0.05,
+            }
+        ],
+    }
+    event = _gaze_test_event(report, 123)
+    assert event is not None
+    assert event.n_points == 1
+    assert event.points[0].expected_x == 0.5
+    assert event.points[0].predicted_y == 0.53
+
+
 def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:
     from fovea.events import CalibrationCue
     from fovea.webcam.calibration import CALIBRATION_LAYOUT

@@ -132,11 +132,20 @@ class GazeEngine:
             selected = self.model.targets
         self._set_targets(CALIBRATION_LAYOUT if selected is None else selected)
         self._test_preds = []
+        self.last_test_report = {}
         self._collectors = [
             PointCollector(self.settings.samples_per_point, self.settings.min_good_samples)
             for _ in self.targets
         ]
         self._set_wizard("test", 0)
+
+    def resume_after_gaze_test(self) -> None:
+        """Return to live gaze output after a completed guided test."""
+        if self.wizard is None or self.wizard.kind != "test" or not self.wizard.done:
+            return
+        self.wizard = None
+        self._filter.reset()
+        self._last_screen = None
 
     def _set_targets(self, targets: Sequence[CalibrationTarget]) -> None:
         self.targets = validate_calibration_targets(targets)
