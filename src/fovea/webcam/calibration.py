@@ -165,6 +165,8 @@ def fit_ridge(
 def uncalibrated_map(features: GazeFeatures) -> tuple[float, float]:
     dx = (features.iris_nx - 0.5) * 2.2 + 0.35 * features.blend_x
     dy = (features.iris_ny - 0.5) * 1.6 + 0.85 * features.blend_y
+    # Compensate head motion using the documented post-mirror convention:
+    # rightward turn and downward nod are positive.
     dx -= 0.15 * (features.yaw_deg / 30.0)
     dy -= 0.10 * (features.pitch_deg / 30.0)
     return clamp01(0.5 + dx), clamp01(0.5 + dy)
