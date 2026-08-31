@@ -10,6 +10,8 @@ import hashlib
 import urllib.request
 from pathlib import Path
 
+from fovea.paths import default_model_path
+
 # Tasks Face Landmarker, float16, numbered revision (not "latest").
 FACE_LANDMARKER_VERSION = "1"
 FACE_LANDMARKER_URL = (
@@ -19,7 +21,9 @@ FACE_LANDMARKER_URL = (
 )
 FACE_LANDMARKER_SHA256 = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
 
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parents[3] / "models" / "face_landmarker.task"
+# Kept for compatibility with callers that import the constant. Internal code
+# calls ``default_model_path()`` so environment changes made before use apply.
+DEFAULT_MODEL_PATH = default_model_path()
 
 _CHUNK = 1024 * 1024
 
@@ -61,7 +65,7 @@ def download_face_landmarker(
     expected: str = FACE_LANDMARKER_SHA256,
 ) -> Path:
     """Download the pinned model if needed and verify SHA-256 before returning."""
-    path = dest or DEFAULT_MODEL_PATH
+    path = dest or default_model_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file() and path.stat().st_size > 0:
         verify_face_landmarker(path, expected)

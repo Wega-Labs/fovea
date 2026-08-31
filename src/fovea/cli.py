@@ -20,6 +20,7 @@ from typing import NoReturn
 from fovea import __version__
 from fovea.benchmark import BenchmarkConfig, run_live_benchmark
 from fovea.interfaces import EventSource
+from fovea.paths import default_model_path
 from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expired_diagnostics
 from fovea.protocol import (
     CalibrateCommand,
@@ -41,7 +42,6 @@ from fovea.webcam.event_source import WebcamEventSource
 from fovea.webcam.fixtures import ReplayEventSource, record_landmarks
 from fovea.webcam.landmarks import MediaPipeUnavailableError, resolve_model_path
 from fovea.webcam.model import (
-    DEFAULT_MODEL_PATH,
     ModelChecksumError,
     verify_face_landmarker,
 )
@@ -290,14 +290,14 @@ def _stream(source: EventSource, backend: str = "mediapipe") -> int:
 def _settings(args: argparse.Namespace) -> GazeSettings:
     settings = GazeSettings()
     if args.calibration_path is not None:
-        settings.calibration_path = str(args.calibration_path)
+        settings.calibration_path = args.calibration_path
     return settings
 
 
 def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSource:
     return factory(
         settings=_settings(args),
-        project_root=Path.cwd(),
+        project_root=None,
         device_index=args.camera,
         width=args.width,
         height=args.height,
@@ -352,7 +352,7 @@ def _package_version(distribution: str) -> str:
 
 
 def _doctor(backend: str = "mediapipe") -> int:
-    model_path = DEFAULT_MODEL_PATH
+    model_path = default_model_path()
     try:
         verify_face_landmarker(model_path)
         model_status = "verified"

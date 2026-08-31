@@ -15,6 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Configure platform paths
+        run: |
+          echo "FOVEA_DATA_DIR=${RUNNER_TEMP}/fovea-data" >> "$GITHUB_ENV"
+          echo "FOVEA_MODEL_PATH=${RUNNER_TEMP}/fovea-cache/face_landmarker.task" >> "$GITHUB_ENV"
+
       - uses: astral-sh/setup-uv@v5
         with: { python-version: "3.12" }
 
@@ -27,7 +32,7 @@ jobs:
       - name: Cache FaceLandmarker model
         uses: actions/cache@v4
         with:
-          path: models/face_landmarker.task
+          path: ${{ runner.temp }}/fovea-cache/face_landmarker.task
           key: face-landmarker-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
 
       - name: Download model (verified by SHA-256)
