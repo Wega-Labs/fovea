@@ -4,7 +4,7 @@ const NEWLINE = 0x0a;
 const CARRIAGE_RETURN = 0x0d;
 
 export class NdjsonDecoder {
-  private buffered = Buffer.alloc(0);
+  private buffered: Buffer<ArrayBufferLike> = Buffer.alloc(0);
 
   constructor(readonly maxBytes: number) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {

@@ -38,7 +38,9 @@ test("validates a split hello and drives calibration", async (context) => {
   assert.equal(hello.backend, "fake");
   const cues: Array<string> = [];
   const result = await client.runCalibration({
-    onCue: (cue) => cues.push(cue.label),
+    onCue: (cue) => {
+      cues.push(cue.label);
+    },
   });
 
   assert.deepEqual(cues, ["center"]);
