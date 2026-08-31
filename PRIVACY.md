@@ -1,40 +1,89 @@
-# Privacy
+# Privacy and Safety
 
-Fovea is local-first gaze infrastructure. Its default camera and gaze pipeline does not send
-frames, landmarks, gaze events, calibration data, or diagnostics to Wega Labs or any third party.
-Fovea includes no analytics or telemetry client.
+Fovea is a local input engine, not an analytics service. Its default runtime has
+no telemetry, account, cloud inference, advertising, or network client. Camera
+frames are processed in memory and discarded after landmark inference.
 
-## Data flow
+## Data boundary
 
-Live camera pixels are held in process memory long enough to run local landmark inference and
-are then discarded. Applications consume typed gaze and tracking events, not unrestricted camera
-frames. Fovea does not perform identity or emotion recognition.
+During an ordinary run, Fovea reads frames from the selected local camera and
+emits typed events to the local host process over stdout. It does not transmit
+frames, landmarks, calibration data, gaze coordinates, target IDs, diagnostics,
+or behavioral events over a network.
 
-The engine may persist calibration coefficients, sample counts, quality labels, and a creation
-timestamp at the configured calibration path. These values describe a gaze mapping; image pixels
-and landmark frames are not part of the calibration file. Delete that file to remove the saved
-calibration.
+The only network-capable runtime source is the explicit pinned-model downloader
+in `src/fovea/webcam/model.py`. It downloads one declared MediaPipe model and
+verifies its SHA-256 before installation. Fovea never downloads a model as a
+side effect of starting camera capture.
 
-The optional landmark recorder requires an explicit command and writes normalized landmarks and
-blendshape scores only. It never writes camera pixels. Landmark recordings can still describe
-behavior and must be treated as sensitive data; consent and fixture rules live in
-`tests/fixtures/README.md`.
+## Persistence
 
-## Network behavior
+An ordinary run persists only the calibration record selected by the user or
+host. That JSON file contains regression coefficients plus the calibration's
+feature names, sample counts and quality labels, display/camera/frame identity,
+and target layout. It contains no image pixels and is not an identity template,
+but it can still reveal device geometry and behavioral characteristics; protect
+it as personal application data.
 
-The runtime engine and CLI do not require a network connection. The model download script makes
-an explicit request to the pinned MediaPipe asset URL and verifies the file with a committed
-SHA-256 digest before use. No camera or calibration data is included in that request.
+Target registration, gaze events, and health diagnostics are not persisted by
+the core engine. The explicit landmark-recording workflow is an exception: it
+writes the contributor-selected destination and never includes pixels. Recorded
+landmarks are biometric-adjacent data; contributors must record only themselves,
+provide informed consent, and never include minors or third parties.
 
-## Diagnostics and hosts
+## Diagnostics and retention
 
-Diagnostics are opt-in event data and are not persisted by Fovea. Embedding applications decide
-whether to retain events and must disclose any behavior that differs from Fovea's defaults.
-Hosts must show a persistent indicator while tracking is active, provide an immediate pause/stop
-control, and avoid using gaze as sole confirmation for destructive or security-sensitive actions.
+Diagnostics are off by default. `--diagnostics` adds rate-limited health events
+to the local NDJSON stream; it does not enable network access or raw-frame
+capture. If a host retains those events in Fovea's diagnostics directory, the
+CLI removes expired `.json`, `.jsonl`, and `.ndjson` artifacts before starting a
+diagnostic session. The default is `--diagnostics-retention 24h`; hosts may set
+an app-specific directory with `--diagnostics-dir`.
 
-## Reports
+Managed filenames begin with `fovea-diagnostics-`. Cleanup is deliberately
+non-recursive and ignores other names, unknown file types, and directories. A
+host that copies diagnostics elsewhere owns the retention and deletion policy
+for that copy.
 
-Report a suspected privacy or security vulnerability privately according to
-[SECURITY.md](SECURITY.md). Do not attach faces, frames, or identifying landmark recordings to a
-public issue.
+## Prohibited uses and absent features
+
+Fovea does not perform face recognition, identity matching, emotion inference,
+demographic classification, covert recording, or analytics. Applications must
+not repurpose its camera or gaze data for surveillance or identity decisions.
+
+Fovea is not a medical device. Gaze estimates can be inaccurate, and target or
+dwell events must not be the sole confirmation for destructive, financial,
+security-sensitive, or safety-critical actions.
+
+## Visible capture and user control
+
+The protocol handshake declares `indicator_required: true`. Every host must show
+a persistent, unambiguous indicator for the full time camera capture is active.
+Hosts must also provide a non-gaze way to pause and stop capture, preserve an
+alternative input path, and avoid designs that force prolonged fixation or
+blinking.
+
+## Threat model
+
+Fovea's controls reduce these risks:
+
+- Accidental network exfiltration: CI rejects networking imports outside the
+  pinned model downloader.
+- Supply-chain model replacement: the downloader uses a versioned URL and a
+  hard-coded SHA-256; mismatches fail closed.
+- Silent long-term retention: runtime data is ephemeral by default, calibration
+  persistence is explicit, and opt-in diagnostics have bounded cleanup.
+- Stale or cross-device calibration: calibration records include display,
+  camera, and frame identity and are rejected on mismatch.
+- Hidden capture: the wire contract requires a host-visible indicator and the
+  process supports pause, quit, and clean camera release.
+
+These controls cannot protect data after a host reads stdout, a local process
+with permission to inspect Fovea's memory or files, a compromised Python/native
+dependency, or an operating system with a compromised camera stack. Embedders
+must apply platform permissions, least-privilege file access, dependency review,
+and their own user-facing privacy notice.
+
+Security and privacy vulnerabilities should be reported through the private
+channel described in `SECURITY.md`. Do not attach faces, frames, or identifying
+landmark recordings to a public issue.

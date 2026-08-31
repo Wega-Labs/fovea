@@ -17,6 +17,7 @@ from typing import NoReturn
 
 from fovea import __version__
 from fovea.interfaces import EventSource
+from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expired_diagnostics
 from fovea.protocol import (
     CalibrateCommand,
     Command,
@@ -71,6 +72,13 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _retention_seconds(value: str) -> float:
+    try:
+        return parse_retention(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: bool) -> None:
     parser.add_argument("--ndjson", action="store_true", required=require_ndjson)
     parser.add_argument("--camera", type=_nonnegative_int, default=0, metavar="N")
@@ -81,6 +89,13 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
     parser.add_argument("--diagnostics", action="store_true")
+    parser.add_argument(
+        "--diagnostics-retention",
+        type=_retention_seconds,
+        default=_retention_seconds("24h"),
+        metavar="DURATION",
+    )
+    parser.add_argument("--diagnostics-dir", type=Path, metavar="P")
     parser.add_argument("--display-id", metavar="ID")
     parser.add_argument("--display-width", type=_positive_int, default=1280, metavar="W")
     parser.add_argument("--display-height", type=_positive_int, default=720, metavar="H")
@@ -318,6 +333,9 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
 
     source: EventSource | None = None
     try:
+        if args.diagnostics:
+            diagnostics_dir = args.diagnostics_dir or default_diagnostics_dir()
+            purge_expired_diagnostics(diagnostics_dir, args.diagnostics_retention)
         if source_factory is None:
             verify_face_landmarker(resolve_model_path(args.model))
         source = _make_source(args, source_factory or WebcamEventSource)

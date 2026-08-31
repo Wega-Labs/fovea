@@ -263,7 +263,7 @@ def test_calibrate_and_test_aliases_set_source_mode(
     assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
-def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
+def test_diagnostics_flag_reaches_source(monkeypatch, capsys, tmp_path) -> None:
     monkeypatch.setattr("sys.stdin", io.StringIO(""))
     received: dict[str, object] = {}
 
@@ -271,7 +271,21 @@ def test_diagnostics_flag_reaches_source(monkeypatch, capsys) -> None:
         received.update(kwargs)
         return FakeSource([])
 
-    assert main(["run", "--ndjson", "--diagnostics"], source_factory=factory) == 0
+    assert (
+        main(
+            [
+                "run",
+                "--ndjson",
+                "--diagnostics",
+                "--diagnostics-dir",
+                str(tmp_path),
+                "--diagnostics-retention",
+                "24h",
+            ],
+            source_factory=factory,
+        )
+        == 0
+    )
     assert received["diagnostics"] is True
     assert capsys.readouterr().out.splitlines() == [hello_json()]
 
