@@ -666,56 +666,62 @@ first response 5 working days.
 - [#39](https://github.com/Wega-Labs/fovea/pull/39) added the NDJSON CLI, controls,
   doctor, and stable exit codes; issue #5 is closed.
 
-No later issue is reported closed. At the owner's direction, the remaining work
-was first committed and pushed without local acceptance commands. Draft PRs were
-then opened as an explicitly dependency-ordered review stack; none is represented
-as verified, merge-ready, merged, or closed:
+At the owner's direction, the remaining work was committed without local
+acceptance commands, opened as a dependency-ordered PR stack, rebased in order,
+and admitted only after the repository's required GitHub checks passed. The
+following PRs are merged:
 
-| Area | Draft PR | Branch | Tip when prepared |
-|---|---|---|---|
-| Landmark record/replay | #41 | `feat/17-landmark-record-replay` | `640672e` |
-| Platform-native paths | #42 | `fix/platform-paths` | `e0e2ded` |
-| Landmark timestamps | #43 | `fix/monotonic-landmark-timestamps` | `04c26f7` |
-| Community health files | #44 | `docs/community-health-files` | `4e150fc` |
-| README truthfulness | #45 | `docs/readme-truthfulness` | `95bbc06` |
-| Diagnostics events | #46 | `feat/diagnostics-events` | `faa6866` |
-| Protocol and schema | #47 | `feat/8-versioned-wire-protocol` | `2fcb49c` |
-| Calibration identity | #48 | `feat/calibration-identity` | `c82326d` |
-| Fixation and blink | #49 | `feat/fixation-blink-events` | `f02fc91` |
-| Windowed calibration | #50 | `feat/10-windowed-calibration` | `c557477` |
-| Target-aware mode | #51 | `feat/11-target-aware-mode` | `e96cd39` |
-| Privacy enforcement | #52 | `feat/27-privacy-safety-artifacts` | `6ca58a4` |
-| Benchmark suite | #53 | `feat/18-benchmark-suite` | `f8c735f` |
-| Backend seam (first half) | #54 | `feat/15-landmark-backend-seam` | `dc11dc3` |
-| TypeScript client | #55 | `feat/9-typescript-client` | `36af048` |
+| Area | Merged PR | Result |
+|---|---|---|
+| Landmark record/replay | #41 | closed #17 |
+| Platform-native paths | #42 | merged |
+| Landmark timestamps | #43 | merged |
+| Community health files | #44 | merged |
+| README truthfulness | #45 | merged |
+| Diagnostics events | #46 | merged |
+| Protocol and schema | #47 | closed #8 |
+| Calibration identity | #48 | merged |
+| Fixation and blink | #49 | merged |
+| Windowed calibration | #50 | closed #10 |
+| Target-aware mode | #51 | closed #11 |
+| Privacy enforcement | #52 | closed #27 |
+| Benchmark suite | #53 | closed #18; live runs remain an owner action |
+| Backend seam (first half) | #54 | merged; #15 remains open for later backends |
 
-The C1–C9 branches are dependency-stacked. Review and merge them in their
-dependency order; the B-series branches are independent where their histories
-show that they branch directly from `main`.
+PR #55 is the final TypeScript-client PR and contains this report. It closes #9
+when merged. Its final merge status cannot truthfully be self-reported by the
+commit being merged; GitHub is the authoritative record. The branch is to be
+deleted as part of that merge.
 
 Duplicate CLI PR #40 was closed as superseded by merged PR #39. `main` branch
-protection now requires the current Ubuntu and macOS CI contexts, one approving
-review, dismissal of stale reviews, and resolved conversations. It applies to
-administrators, rejects force-pushes and deletion, and restricts pushes to the
-`harshsaver` account.
+protection now requires changes through pull requests, the current Ubuntu and
+macOS CI contexts, and resolved conversations. The approving-review count is
+zero because the repository currently has one organization member; GitHub does
+not permit authors to approve their own pull requests. Protection applies to
+administrators, rejects force-pushes and deletion, and restricts protected
+pushes to the `harshsaver` account.
+
+All merged PR branches in #41–#54 were deleted after their dependents were
+retargeted. Immediately before the final merge, the only remote branches are
+`main` and PR #55's `feat/9-typescript-client`; the latter is deleted by the
+merge command.
 
 ### Verification and measurements
 
-The executor did not run the deferred branch test suites, type checkers, package
-builds, generated-file commands, live benchmark, or Appendix A camera smoke test
-after the owner's instruction to leave execution for later. Consequently there
-is no new test count, live FPS/latency/pitch measurement, three-machine benchmark,
-or Electron end-to-end result to report. The branches contain camera-free tests
-and CI definitions, but their acceptance boxes must remain unticked until those
-commands actually pass.
+The executor did not run local branch test suites, type checkers, package builds,
+generated-file commands, the live benchmark, or Appendix A's camera smoke test
+after the owner's instruction to leave local execution for later. The required
+GitHub CI checks did run remotely for merged PRs #41–#54 and passed on Ubuntu and
+macOS before each merge. Consequently there is still no new local test count,
+live FPS/latency/pitch measurement, three-machine benchmark, or Electron
+end-to-end result to report.
 
 No new evidence was collected that contradicts the measured facts in §0.2. This
 is an absence of measurement, not a revalidation of those numbers.
 
 ### Remaining owner and release actions
 
-- Run the per-branch acceptance commands and merge the dependency stack; close
-  issues only through the corresponding verified PRs.
+- Perform the deferred local and live acceptance checks on the merged tree.
 - Create/configure the PyPI project and trusted publisher, and create the npm
   organization/access needed for `@wega-labs/fovea-client`.
 - Supply the Code of Conduct contact address and confirm the intended CODEOWNERS.
