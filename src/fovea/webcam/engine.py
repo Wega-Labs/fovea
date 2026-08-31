@@ -15,6 +15,7 @@ from numpy.typing import NDArray
 from fovea.util import ScreenPoint, clamp01
 from fovea.webcam.calibration import (
     CALIBRATION_LAYOUT,
+    CalibrationIdentity,
     fit_ridge,
     load_model,
     save_model,
@@ -74,12 +75,18 @@ class WizardState:
 
 
 class GazeEngine:
-    def __init__(self, settings: GazeSettings, project_root: Path) -> None:
+    def __init__(
+        self,
+        settings: GazeSettings,
+        project_root: Path,
+        identity: CalibrationIdentity | None = None,
+    ) -> None:
         self.settings = settings
+        self.identity = identity
         self.path = Path(settings.calibration_path)
         if not self.path.is_absolute():
             self.path = project_root / self.path
-        self.model = load_model(self.path)
+        self.model = load_model(self.path, expect=identity)
         self._filter = OneEuroPoint(settings.one_euro_mincutoff, settings.one_euro_beta)
         self._last_screen: ScreenPoint | None = None
         self._history: deque[tuple[float, float]] = deque(maxlen=12)
@@ -283,7 +290,7 @@ class GazeEngine:
             counts[key] = collector.count
             qualities[key] = collector.quality()
         if len(rows) >= 3:
-            self.model = fit_ridge(rows, xy, counts, qualities)
+            self.model = fit_ridge(rows, xy, counts, qualities, identity=self.identity)
             save_model(self.model, self.path)
         self.wizard = None
         self._filter.reset()

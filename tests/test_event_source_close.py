@@ -47,7 +47,7 @@ class FakeEstimator:
 class FakeCalibrationDisplay:
     instances: ClassVar[list[FakeCalibrationDisplay]] = []
 
-    def __init__(self) -> None:
+    def __init__(self, *_args, **_kwargs) -> None:
         self.show_calls = 0
         self.close_calls = 0
         FakeCalibrationDisplay.instances.append(self)

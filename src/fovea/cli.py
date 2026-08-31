@@ -76,6 +76,9 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
     parser.add_argument("--diagnostics", action="store_true")
+    parser.add_argument("--display-id", metavar="ID")
+    parser.add_argument("--display-width", type=_positive_int, default=1280, metavar="W")
+    parser.add_argument("--display-height", type=_positive_int, default=720, metavar="H")
 
 
 def _build_parser() -> _JsonArgumentParser:
@@ -209,6 +212,9 @@ def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSourc
         force_test=args.command == "test",
         show_calibration=not args.no_display,
         diagnostics=args.diagnostics,
+        display_id=args.display_id,
+        display_width=args.display_width,
+        display_height=args.display_height,
     )
 
 
