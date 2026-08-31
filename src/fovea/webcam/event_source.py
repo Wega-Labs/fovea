@@ -8,10 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fovea.events import (
-    Blink,
     CalibrationCue,
     Diagnostics,
-    Eye,
     FoveaEvent,
     GazePoint,
     TrackingState,
@@ -22,6 +20,7 @@ from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
+from fovea.webcam.temporal import BlinkDetector, FixationDetector
 
 
 def _tracking_status(label: str) -> TrackingStatus:
@@ -96,7 +95,11 @@ class WebcamEventSource:
         frame_count = 0
         fps = 0.0
         last_time = time.perf_counter()
-        last_blink = False
+        blink_detector = BlinkDetector()
+        fixation_detector = FixationDetector(
+            stability_ms=self.settings.stability_ms,
+            radius=self.settings.hysteresis,
+        )
         last_diagnostics_at: float | None = None
 
         try:
@@ -122,6 +125,8 @@ class WebcamEventSource:
                 frame = camera.read()
                 timestamp_ns = time.time_ns()
                 if frame is None:
+                    blink_detector.reset()
+                    fixation_detector.reset()
                     yield TrackingState(
                         status=TrackingStatus.LOST,
                         confidence=0.0,
@@ -180,14 +185,17 @@ class WebcamEventSource:
                     yield _diagnostics_event(output, timestamp_ns)
                     last_diagnostics_at = now
 
-                if output.features is not None and output.features.blink and not last_blink:
-                    yield Blink(
-                        eye=Eye.BOTH,
-                        duration_ms=0.0,
-                        confidence=output.confidence,
-                        timestamp_ns=timestamp_ns,
+                if output.features is None or output.tracking == "LOST":
+                    blink_detector.reset()
+                    fixation_detector.reset()
+                else:
+                    blink_event = blink_detector.update(
+                        output.features.blink,
+                        output.confidence,
+                        timestamp_ns,
                     )
-                last_blink = bool(output.features and output.features.blink)
+                    if blink_event is not None:
+                        yield blink_event
 
                 if output.valid and output.screen is not None:
                     yield GazePoint(
@@ -196,6 +204,16 @@ class WebcamEventSource:
                         confidence=output.confidence,
                         timestamp_ns=timestamp_ns,
                     )
+                    fixation = fixation_detector.update(
+                        output.screen.x,
+                        output.screen.y,
+                        output.confidence,
+                        timestamp_ns,
+                    )
+                    if fixation is not None:
+                        yield fixation
+                else:
+                    fixation_detector.reset()
 
                 frames += 1
         finally:

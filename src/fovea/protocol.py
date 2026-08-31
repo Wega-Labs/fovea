@@ -84,7 +84,7 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
         "backend": backend,
         "coordinate_space": COORDINATE_SPACE,
         "indicator_required": True,
-        "capabilities": ["calibration_cue", "diagnostics"],
+        "capabilities": ["calibration_cue", "diagnostics", "fixation", "blink"],
     }
 
 
