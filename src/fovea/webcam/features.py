@@ -29,11 +29,11 @@ MOUTH_LEFT, MOUTH_RIGHT = 291, 61
 _FACE_3D = np.array(
     [
         [0.0, 0.0, 0.0],
-        [0.0, -330.0, -65.0],
-        [225.0, 170.0, -135.0],
-        [-225.0, 170.0, -135.0],
-        [150.0, -150.0, -125.0],
-        [-150.0, -150.0, -125.0],
+        [0.0, 330.0, 65.0],
+        [225.0, -170.0, 135.0],
+        [-225.0, -170.0, 135.0],
+        [150.0, 150.0, 125.0],
+        [-150.0, 150.0, 125.0],
     ],
     dtype=np.float64,
 )
@@ -167,6 +167,14 @@ def estimate_head_pose(
     image_w: float,
     image_h: float,
 ) -> tuple[float, float, float]:
+    """Return yaw, pitch, and roll in degrees for the post-mirror input frame.
+
+    The face model uses camera coordinates (x right, y down, z forward) to match
+    image coordinates. Nodding down is positive pitch, turning toward the
+    camera's right is positive yaw, and clockwise tilt as seen by the camera is
+    positive roll. ``Webcam(mirror=True)`` flips the frame before inference, so
+    yaw follows the mirrored frame the engine sees. Angles are in ``(-180, 180]``.
+    """
     ids = (NOSE, CHIN, LEFT_EYE_OUTER_FOR_POSE, RIGHT_EYE_OUTER_FOR_POSE, MOUTH_LEFT, MOUTH_RIGHT)
     if any(i >= len(landmarks) for i in ids) or image_w < 2 or image_h < 2:
         return 0.0, 0.0, 0.0
@@ -199,7 +207,12 @@ def estimate_head_pose(
         pitch = float(np.degrees(np.arctan2(-rotation[2, 1], rotation[2, 2])))
         yaw = float(np.degrees(np.arctan2(rotation[2, 0], sy)))
         roll = float(np.degrees(np.arctan2(rotation[1, 0], rotation[0, 0])))
-    return yaw, pitch, roll
+    return _wrap_degrees(yaw), _wrap_degrees(pitch), _wrap_degrees(roll)
+
+
+def _wrap_degrees(angle: float) -> float:
+    wrapped = (angle + 180.0) % 360.0 - 180.0
+    return 180.0 if wrapped == -180.0 else wrapped
 
 
 def face_width(landmarks: Sequence[Any]) -> float:
