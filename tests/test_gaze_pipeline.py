@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import threading
+import time
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -509,3 +512,212 @@ def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:
     assert cues[0].x == first.x
     assert cues[0].y == first.y
     assert cues[0].total == len(CALIBRATION_LAYOUT)
+
+
+def _save_calibration_model(path: Path) -> None:
+    from fovea.webcam.calibration import fit_ridge, save_model
+
+    rows = [
+        _features(0.5, 0.5).vector(),
+        _features(0.3, 0.3).vector(),
+        _features(0.7, 0.7).vector(),
+    ]
+    model = fit_ridge(
+        rows,
+        [(0.5, 0.5), (0.2, 0.2), (0.8, 0.8)],
+        {"n": 3},
+        {"n": "GOOD"},
+        identity=CalibrationIdentity(None, 1280, 720, 0, 640, 480),
+    )
+    save_model(model, path)
+
+
+class _FreeRunningCamera:
+    def __init__(self, *_args, **_kwargs) -> None:
+        return None
+
+    def connect(self) -> None:
+        return None
+
+    def read(self):
+        return np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def disconnect(self) -> None:
+        return None
+
+
+def test_webcam_gaze_points_carry_capture_to_emit_latency(monkeypatch, tmp_path) -> None:
+    from fovea.events import Diagnostics, GazePoint, TrackingState
+    from fovea.webcam.event_source import WebcamEventSource
+
+    face = _face_with_iris()
+    cal_path = tmp_path / "gaze_calibration.json"
+    _save_calibration_model(cal_path)
+
+    class FakeEstimator:
+        def __init__(self, **_kwargs) -> None:
+            return None
+
+        def process(self, _frame):
+            return type("Obs", (), {"landmarks": face, "blendshapes": {}})()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", _FreeRunningCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(cal_path), smoothing_alpha=1.0),
+        max_frames=3,
+        show_calibration=False,
+        diagnostics=True,
+    )
+    events = list(source.events())
+
+    gaze_points = [event for event in events if isinstance(event, GazePoint)]
+    assert len(gaze_points) == 3
+    assert all(isinstance(point.latency_ms, float) for point in gaze_points)
+    assert all(point.latency_ms is not None and point.latency_ms >= 0.0 for point in gaze_points)
+    diagnostics = [event for event in events if isinstance(event, Diagnostics)]
+    assert diagnostics[0].latency_p50_ms is None
+    assert diagnostics[0].latency_p95_ms is None
+    assert isinstance(diagnostics[0].dropped_frames, int)
+    assert diagnostics[0].dropped_frames >= 0
+    assert [type(event) for event in events[:3]] == [TrackingState, Diagnostics, GazePoint]
+
+
+class _ValidGazeEngine:
+    """Fake engine: a valid gaze point every frame and a calibration report on the first."""
+
+    def __init__(self, *_args, **_kwargs) -> None:
+        from fovea.webcam.calibration import CALIBRATION_LAYOUT
+
+        self.model = object()
+        self.wizard = None
+        self.targets = CALIBRATION_LAYOUT
+        self.calibration_warning = ""
+        self.coverage_x = self.coverage_y = 1.0
+        self.last_calibration_report: dict[str, object] = {}
+        self.last_test_report: dict[str, object] = {}
+
+    def start_calibration(self, _targets=None) -> None:
+        return None
+
+    def start_gaze_test(self, _targets=None) -> None:
+        return None
+
+    def resume_after_gaze_test(self) -> None:
+        return None
+
+    def process(self, *_args, **_kwargs):
+        from fovea.util import ScreenPoint
+        from fovea.webcam.engine import GazeOutput
+
+        if not self.last_calibration_report:
+            self.last_calibration_report = {"n_points": 5, "coverage": 0.8, "loo_error": 0.07}
+        return GazeOutput(
+            valid=True,
+            tracking="GOOD",
+            message="",
+            features=None,
+            screen=ScreenPoint(0.5, 0.5),
+            confidence=0.9,
+            fps=30.0,
+            calibrated=True,
+            frozen=False,
+        )
+
+
+def test_gaze_latency_excludes_consumer_pauses_between_a_frames_events(
+    monkeypatch, tmp_path
+) -> None:
+    from fovea.events import CalibrationDone, GazePoint
+    from fovea.webcam.event_source import WebcamEventSource
+
+    class FakeEstimator:
+        def __init__(self, **_kwargs) -> None:
+            return None
+
+        def process(self, _frame):
+            return None
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", _FreeRunningCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+    monkeypatch.setattr("fovea.webcam.event_source.GazeEngine", _ValidGazeEngine)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "c.json")),
+        max_frames=2,
+        show_calibration=False,
+    )
+    iterator = source.events()
+    event = next(iterator)
+    while not isinstance(event, CalibrationDone):
+        event = next(iterator)
+    time.sleep(0.2)  # the stimulus: a host pause between two events of the same frame
+    gaze = next(iterator)
+    assert isinstance(gaze, GazePoint)
+    assert gaze.latency_ms is not None
+    assert gaze.latency_ms < 100.0
+    source.close()
+    list(iterator)
+
+
+def test_dropped_frames_reach_diagnostics(monkeypatch, tmp_path) -> None:
+    from fovea.events import Diagnostics, TrackingState
+    from fovea.webcam.event_source import WebcamEventSource
+    from tests.test_capture import SAFETY_TIMEOUT_S, GatedCamera
+
+    camera = GatedCamera(shape=(480, 640, 3))
+    entered = threading.Event()
+    proceed = threading.Event()
+
+    class BlockingEstimator:
+        calls = 0
+
+        def __init__(self, **_kwargs) -> None:
+            return None
+
+        def process(self, _frame):
+            BlockingEstimator.calls += 1
+            if BlockingEstimator.calls == 1:
+                entered.set()
+                assert proceed.wait(SAFETY_TIMEOUT_S)
+            return None
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", lambda *_args, **_kwargs: camera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", BlockingEstimator)
+    monkeypatch.setattr("fovea.webcam.event_source._DIAGNOSTICS_INTERVAL_SECONDS", 0.0)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        max_frames=2,
+        show_calibration=False,
+        diagnostics=True,
+    )
+    events: list[object] = []
+    worker = threading.Thread(target=lambda: events.extend(source.events()), daemon=True)
+    worker.start()
+
+    camera.release()
+    assert entered.wait(SAFETY_TIMEOUT_S)  # frame 1 is inside the estimator
+    camera.release(2)
+    camera.wait_until_blocked(4)  # frames 2 and 3 were handed over; 2 was overwritten
+    camera.unblock()  # later reads fail instantly so close() can join the producer
+    proceed.set()
+    worker.join(SAFETY_TIMEOUT_S)
+    assert not worker.is_alive()
+
+    diagnostics = [event for event in events if isinstance(event, Diagnostics)]
+    assert diagnostics
+    assert diagnostics[-1].dropped_frames == 1
+    tracking = [event for event in events if isinstance(event, TrackingState)]
+    assert len(tracking) == 2
+    assert tracking[1].timestamp_ns > tracking[0].timestamp_ns

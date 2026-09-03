@@ -4,7 +4,7 @@ Fovea writes UTF-8 NDJSON to stdout. A successful stream starts with one `hello`
 object and then emits one event per line. Hosts send control messages as one JSON
 object per line on stdin. Logs belong on stderr.
 
-The current protocol version is `1.1`. The `1.x` line uses `display_normalized`
+The current protocol version is `1.2`. The `1.x` line uses `display_normalized`
 coordinates: `(0, 0)` is the display's top-left and `(1, 1)` is its bottom-right.
 Hosts must display a visible camera-use indicator whenever capture is active, as
 declared by `indicator_required` in the handshake.
@@ -22,7 +22,7 @@ are backward-compatible protocol-minor changes. Consumers must ignore unknown
 object fields and event types. Removing a field, changing its meaning or type, or
 changing the coordinate space requires a new protocol major version.
 
-Hosts written for protocol `1.0` remain compatible with `1.1`: every `1.0` field
+Hosts written for protocol `1.0` remain compatible with `1.2`: every `1.0` field
 keeps its meaning and type, the relative order of existing events within a frame
 is unchanged, and the new event types and the optional `gaze_point.pursuit`
 member are ignored by contract. Clients should compare only the major component
@@ -35,6 +35,8 @@ timestamps are nanoseconds; ordering follows the NDJSON stream.
 
 ## Version history
 
+- `1.2` — optional capture-to-emit latency on `gaze_point`, rolling latency
+  percentiles and dropped-frame counts on `diagnostics`, and latest-frame capture.
 - `1.1` — event vocabulary v2: the `saccade`, `wink`, `double_blink`, and
   `long_blink` event types; the optional boolean `gaze_point.pursuit` member; and
   the `saccade`, `pursuit`, `wink`, `double_blink`, and `long_blink` capability
@@ -125,6 +127,26 @@ the calibration or gaze-test wizard was active at frame start, and stay silent
 after the wizard until both eyes have been seen open and valid on a later frame.
 `blink` events are unaffected, so a blink that starts inside the wizard and
 reopens afterwards is still reported as a `blink` but cannot become a trigger.
+
+### Latency and capture
+
+`gaze_point.latency_ms` is the number of milliseconds from the capture clock (a
+monotonic clock sampled when the camera read returned) to the moment the frame's
+complete event sequence is ready to be handed to the host. It includes the capture
+hand-off, landmark inference, engine processing, and event assembly; it excludes
+consumer pauses, NDJSON serialization, and pipe writes. It is `null` when unknown,
+for example during replay. `diagnostics.latency_ms` keeps its inference-only meaning.
+
+`diagnostics.latency_p50_ms` and `diagnostics.latency_p95_ms` are interpolated
+percentiles of `gaze_point.latency_ms` over the most recent 90 emitted gaze points,
+and `null` before the first one. `diagnostics.dropped_frames` is the cumulative number
+of admitted camera frames discarded because a newer frame arrived before the previous
+one was processed; it resets only when the source restarts, so hosts should diff it.
+
+Fovea never queues more than one captured frame: a slow consumer always receives the
+newest frame. The CLI `--fps N` option caps the processing rate by skipping camera
+frames before inference; skipped frames are not counted as dropped. `timestamp_ns`
+is unchanged: it remains the wall-clock time at capture.
 
 ## Controls
 

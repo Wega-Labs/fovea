@@ -33,7 +33,7 @@ from fovea.events import (
 )
 from fovea.serialize import event_type_name
 
-PROTOCOL_VERSION = "1.1"
+PROTOCOL_VERSION = "1.2"
 COORDINATE_SPACE = "display_normalized"
 
 

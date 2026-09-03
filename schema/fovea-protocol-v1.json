@@ -131,6 +131,16 @@
         },
         "pursuit": {
           "type": "boolean"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -700,6 +710,29 @@
           "type": "number"
         },
         "timestamp_ns": {
+          "type": "integer"
+        },
+        "latency_p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latency_p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dropped_frames": {
           "type": "integer"
         }
       },

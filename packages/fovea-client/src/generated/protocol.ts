@@ -10,6 +10,7 @@ export interface GazePoint {
   readonly snapped_x?: number | null;
   readonly snapped_y?: number | null;
   readonly pursuit?: boolean;
+  readonly latency_ms?: number | null;
 }
 
 export interface TargetEnter {
@@ -164,6 +165,9 @@ export interface Diagnostics {
   readonly yaw_deg: number;
   readonly pitch_deg: number;
   readonly timestamp_ns: number;
+  readonly latency_p50_ms?: number | null;
+  readonly latency_p95_ms?: number | null;
+  readonly dropped_frames?: number;
 }
 
 export interface CalibrateCommand {

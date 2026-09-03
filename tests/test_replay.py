@@ -242,3 +242,16 @@ def test_replay_gaze_points_serialize_the_pursuit_flag(tmp_path) -> None:
     gaze_lines = [item for item in decoded if item["type"] == "gaze_point"]
     assert gaze_lines
     assert all(item["pursuit"] is False for item in gaze_lines)
+
+
+def test_replay_gaze_points_report_unknown_latency(tmp_path) -> None:
+    source = ReplayEventSource(
+        path=FIXTURE,
+        settings=GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        project_root=tmp_path,
+        max_frames=1,
+    )
+    gaze_points = [event for event in source.events() if isinstance(event, GazePoint)]
+    assert gaze_points
+    assert all(point.latency_ms is None for point in gaze_points)
+    assert '"latency_ms":null' in to_json(gaze_points[0])

@@ -10,11 +10,17 @@ on at least three distinct machines remain an owner action because they require
 real cameras, measured displays, controlled distances, and human review. Do not
 replace this notice with simulated or unverified numbers.
 
-| Machine | Camera | Resolution | Lighting | Glasses | 50 cm median | 60 cm median | 75 cm median | Jitter p95 | Drift delta | Latency p95 | Report |
-|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---|
-| Pending live run 1 | — | — | — | — | — | — | — | — | — | — | — |
-| Pending live run 2 | — | — | — | — | — | — | — | — | — | — | — |
-| Pending live run 3 | — | — | — | — | — | — | — | — | — | — | — |
+| Machine | Camera | Resolution | Lighting | Glasses | 50 cm median | 60 cm median | 75 cm median | Jitter p95 | Drift delta | Inference p95 | End-to-end p95 | Report |
+|---|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Pending live run 1 | — | — | — | — | — | — | — | — | — | — | — | — |
+| Pending live run 2 | — | — | — | — | — | — | — | — | — | — | — | — |
+| Pending live run 3 | — | — | — | — | — | — | — | — | — | — | — | — |
+
+The end-to-end latency budget is a target, not a verified result: p95 ≤ 50 ms at
+30 fps on Apple Silicon, measured as the bench report's `end_to_end_latency_ms.p95`
+with `processing_fps_cap: 30`. "Inference p95" is the report's `latency_ms.p95`
+(engine processing only); "End-to-end p95" is `end_to_end_latency_ms.p95` (capture
+to ready-to-emit).
 
 Run the procedure in [bench/PROTOCOL.md](bench/PROTOCOL.md), review the JSON for
 completeness, commit the report under `bench/results/`, and replace one pending

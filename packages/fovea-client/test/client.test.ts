@@ -119,12 +119,12 @@ test("can reconnect with bounded exponential backoff", async (context) => {
 });
 
 test("accepts a newer protocol minor within the supported major", async (context) => {
-  const client = spawnFake("normal", { args: ["--protocol=1.1"] });
+  const client = spawnFake("normal", { args: ["--protocol=1.2"] });
   context.after(() => client.close());
 
   const hello = await client.ready;
 
-  assert.equal(hello.protocol, "1.1");
+  assert.equal(hello.protocol, "1.2");
   assert.equal(client.status, "running");
 });
 
