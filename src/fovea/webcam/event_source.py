@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import threading
 import time
 import warnings
 from collections import deque
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from fovea.events import CalibrationWarning, FoveaEvent
+from fovea.events import CalibrationWarning, FoveaEvent, GazePoint
 from fovea.webcam.backend import create_landmark_backend
 from fovea.webcam.calibration import (
     CalibrationIdentity,
@@ -18,16 +19,30 @@ from fovea.webcam.calibration import (
 )
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
+from fovea.webcam.capture import CaptureClosed, CaptureSession
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.frame_processor import GazeFrameProcessor
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
 from fovea.webcam.targeting import TargetRect, validate_targets
 
 _DIAGNOSTICS_INTERVAL_SECONDS = 0.5
+# Number of most recent emitted gaze points summarized by the Diagnostics percentiles.
+_LATENCY_WINDOW = 90
 
 
 def _diagnostics_due(last_emitted: float | None, now: float) -> bool:
     return last_emitted is None or now - last_emitted >= _DIAGNOSTICS_INTERVAL_SECONDS
+
+
+def _attach_latency(
+    events: Sequence[FoveaEvent],
+    latency_ms: float,
+) -> tuple[FoveaEvent, ...]:
+    """Attach one capture-to-ready measurement to this frame's gaze point."""
+    return tuple(
+        replace(event, latency_ms=latency_ms) if isinstance(event, GazePoint) else event
+        for event in events
+    )
 
 
 @dataclass
@@ -42,6 +57,7 @@ class WebcamEventSource:
     mirror: bool = True
     model_path: str | Path | None = None
     max_frames: int | None = None
+    max_fps: float | None = None
     force_calibrate: bool = False
     force_test: bool = False
     show_calibration: bool = False
@@ -55,6 +71,8 @@ class WebcamEventSource:
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
     _engine: GazeEngine | None = field(default=None, init=False, repr=False)
     _closed: bool = field(default=True, init=False, repr=False)
+    _session: CaptureSession | None = field(default=None, init=False, repr=False)
+    _close_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _pending_events: deque[FoveaEvent] = field(default_factory=deque, init=False, repr=False)
     _calibration_targets: tuple[CalibrationTarget, ...] | None = field(
         default=None, init=False, repr=False
@@ -99,6 +117,7 @@ class WebcamEventSource:
         fps = 0.0
         last_time = time.perf_counter()
         last_diagnostics_at: float | None = None
+        latency_window: deque[float] = deque(maxlen=_LATENCY_WINDOW)
 
         try:
             camera.connect()
@@ -111,6 +130,10 @@ class WebcamEventSource:
                 self.start_calibration(self._calibration_targets)
             elif self.force_test:
                 self.start_gaze_test(self._test_targets)
+            # Capture starts last so neither model load nor display setup counts as dropped frames.
+            session = CaptureSession(camera, max_fps=self.max_fps)
+            self._session = session
+            session.start()
 
             while not self._closed and (self.max_frames is None or frames < self.max_frames):
                 while self._pending_events:
@@ -125,16 +148,22 @@ class WebcamEventSource:
                     frame_count = 0
                     t0 = now
 
-                frame = camera.read()
-                timestamp_ns = time.time_ns()
+                try:
+                    captured = session.next_frame()
+                except CaptureClosed:
+                    break
+                timestamp_ns = time.time_ns() if captured is None else captured.timestamp_ns
                 diagnostics_due = self.diagnostics and _diagnostics_due(last_diagnostics_at, now)
-                if frame is None:
+                if captured is None:
                     events = processor.events_for_lost_frame(
                         fps,
                         timestamp_ns,
                         diagnostics_due=diagnostics_due,
+                        latency_window=latency_window,
+                        dropped_frames=session.dropped_frames,
                     )
                 else:
+                    frame = captured.pixels
                     observation = estimator.process(frame)
                     h, w = frame.shape[:2]
                     landmarks = None if observation is None else observation.landmarks
@@ -148,8 +177,14 @@ class WebcamEventSource:
                         timestamp_ns,
                         blendshapes,
                         diagnostics_due=diagnostics_due,
+                        latency_window=latency_window,
+                        dropped_frames=session.dropped_frames,
                     )
                     self._sync_display(engine)
+                    if any(isinstance(event, GazePoint) for event in events):
+                        latency_ms = (time.monotonic_ns() - captured.captured_ns) / 1e6
+                        events = _attach_latency(events, latency_ms)
+                        latency_window.append(latency_ms)
                 if diagnostics_due:
                     last_diagnostics_at = now
                 yield from events
@@ -224,23 +259,30 @@ class WebcamEventSource:
         self._display.show(self._engine.wizard, self._engine.targets)
 
     def close(self) -> None:
-        """Stop landmark inference and release the webcam capture.
+        """Stop capture and landmark inference and release the webcam.
 
-        Safe to call multiple times. This is the OpenCV analogue of stopping
+        Safe to call multiple times and from any thread. The capture thread is
+        joined before the camera is released, so ``release()`` never runs while
+        a ``read()`` is in flight. This is the OpenCV analogue of stopping
         MediaStream tracks: ``VideoCapture.release()`` ends the camera session.
         """
-        self._closed = True
-        self._engine = None
-        self._processor = None
-        display = self._display
-        self._display = None
-        if display is not None:
-            display.close()
-        estimator = self._estimator
-        self._estimator = None
-        if estimator is not None:
-            estimator.close()
-        camera = self._camera
-        self._camera = None
-        if camera is not None:
-            camera.disconnect()
+        with self._close_lock:
+            self._closed = True
+            session = self._session
+            if session is not None:
+                session.stop()
+            self._session = None
+            self._engine = None
+            self._processor = None
+            display = self._display
+            self._display = None
+            if display is not None:
+                display.close()
+            estimator = self._estimator
+            self._estimator = None
+            if estimator is not None:
+                estimator.close()
+            camera = self._camera
+            self._camera = None
+            if camera is not None:
+                camera.disconnect()

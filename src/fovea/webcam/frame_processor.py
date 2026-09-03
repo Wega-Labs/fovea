@@ -26,6 +26,7 @@ from fovea.events import (
     TrackingState,
     TrackingStatus,
 )
+from fovea.util import percentile
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
 from fovea.webcam.targeting import TargetIntentEvent, TargetMatch, TargetRect, TargetTracker
 from fovea.webcam.temporal import (
@@ -48,8 +49,14 @@ def _tracking_status(label: str) -> TrackingStatus:
     return TrackingStatus.LOST
 
 
-def _diagnostics_event(output: GazeOutput, timestamp_ns: int) -> Diagnostics:
+def _diagnostics_event(
+    output: GazeOutput,
+    timestamp_ns: int,
+    latency_window: Sequence[float],
+    dropped_frames: int,
+) -> Diagnostics:
     features = output.features
+    samples = list(latency_window)
     return Diagnostics(
         fps=output.fps,
         latency_ms=output.latency_ms,
@@ -57,6 +64,9 @@ def _diagnostics_event(output: GazeOutput, timestamp_ns: int) -> Diagnostics:
         yaw_deg=0.0 if features is None else features.yaw_deg,
         pitch_deg=0.0 if features is None else features.pitch_deg,
         timestamp_ns=timestamp_ns,
+        latency_p50_ms=percentile(samples, 0.5),
+        latency_p95_ms=percentile(samples, 0.95),
+        dropped_frames=dropped_frames,
     )
 
 
@@ -180,6 +190,8 @@ class GazeFrameProcessor:
         timestamp_ns: int,
         *,
         diagnostics_due: bool = False,
+        latency_window: Sequence[float] = (),
+        dropped_frames: int = 0,
     ) -> tuple[FoveaEvent, ...]:
         """Events for a capture that produced no frame at all."""
         self._reset_detectors()
@@ -200,6 +212,9 @@ class GazeFrameProcessor:
                     yaw_deg=0.0,
                     pitch_deg=0.0,
                     timestamp_ns=timestamp_ns,
+                    latency_p50_ms=percentile(list(latency_window), 0.5),
+                    latency_p95_ms=percentile(list(latency_window), 0.95),
+                    dropped_frames=dropped_frames,
                 )
             )
         return tuple(events)
@@ -215,6 +230,8 @@ class GazeFrameProcessor:
         blendshapes: Mapping[str, float] | None = None,
         *,
         diagnostics_due: bool = False,
+        latency_window: Sequence[float] = (),
+        dropped_frames: int = 0,
     ) -> tuple[FoveaEvent, ...]:
         engine = self.engine
         wizard_active = engine.wizard is not None
@@ -258,7 +275,7 @@ class GazeFrameProcessor:
         )
 
         if diagnostics_due:
-            events.append(_diagnostics_event(output, timestamp_ns))
+            events.append(_diagnostics_event(output, timestamp_ns, latency_window, dropped_frames))
 
         calibration_report = engine.last_calibration_report
         if calibration_report and calibration_report is not self._emitted_calibration_report:

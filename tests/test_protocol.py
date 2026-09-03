@@ -172,10 +172,16 @@ def test_committed_schema_matches_dataclasses() -> None:
     assert definitions["wink"]["properties"]["eye"] == {"enum": ["left", "right"]}
     for name in ("saccade", "wink", "double_blink", "long_blink"):
         assert definitions[name]["properties"]["type"] == {"const": name}
+    assert "latency_ms" in gaze_schema["properties"]
+    assert "latency_ms" not in gaze_schema["required"]
+    diagnostics_schema = definitions["diagnostics"]
+    for optional_field in ("latency_p50_ms", "latency_p95_ms", "dropped_frames"):
+        assert optional_field in diagnostics_schema["properties"]
+        assert optional_field not in diagnostics_schema["required"]
 
 
 def test_protocol_minor_bump_keeps_major_one() -> None:
-    assert PROTOCOL_VERSION == "1.1"
+    assert PROTOCOL_VERSION == "1.2"
     assert PROTOCOL_VERSION.split(".", 1)[0] == "1"
 
 

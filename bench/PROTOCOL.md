@@ -24,6 +24,7 @@ fovea bench \
   --lighting "office indirect daylight" \
   --glasses "none" \
   --width 640 --height 480 \
+  --fps 30 \
   --output bench/results/<machine>-<date>.json
 ```
 
@@ -42,7 +43,10 @@ The command performs these phases in order:
 
 The report includes point-level normalized and physical angular errors, jitter
 around the median point, active-tracking rate during yaw, drift in median error,
-and inference latency. Angular error uses the measured display dimensions and
+inference latency (`latency_ms`, engine processing only), and end-to-end latency
+(`end_to_end_latency_ms`, capture to ready-to-emit, from `gaze_point.latency_ms`).
+The `--fps` cap is recorded as `environment.processing_fps_cap` so latency results
+are comparable across runs. Angular error uses the measured display dimensions and
 the distance assigned to each phase.
 
 ## Publication checks

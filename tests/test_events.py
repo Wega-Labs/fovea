@@ -28,6 +28,18 @@ def test_wink_rejects_both_eyes() -> None:
         Wink(eye=Eye.BOTH, duration_ms=150.0, confidence=0.8, timestamp_ns=1)  # type: ignore[arg-type]
 
 
+def test_gaze_point_latency_defaults_to_unknown() -> None:
+    point = GazePoint(x=0.25, y=0.75, confidence=0.9, timestamp_ns=1)
+    assert point.latency_ms is None
+
+
+def test_diagnostics_latency_fields_default_to_unknown_and_zero_drops() -> None:
+    diagnostics = Diagnostics(30.0, 8.2, 0.17, -18.0, 2.0, 1)
+    assert diagnostics.latency_p50_ms is None
+    assert diagnostics.latency_p95_ms is None
+    assert diagnostics.dropped_frames == 0
+
+
 def test_tracking_detail_defaults_to_empty() -> None:
     state = TrackingState(
         status=TrackingStatus.ACTIVE,

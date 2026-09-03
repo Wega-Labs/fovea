@@ -48,7 +48,7 @@ from fovea.webcam.targeting import TargetRect
 
 def _all_event_types() -> list[FoveaEvent]:
     return [
-        GazePoint(0.25, 0.75, 0.9, 1, "card-1", 0.3, 0.8, True),
+        GazePoint(0.25, 0.75, 0.9, 1, "card-1", 0.3, 0.8, True, 12.5),
         TargetEnter("card-1", 2),
         TargetLeave("card-1", 3),
         DwellProgress("card-1", 0.5, 4),
@@ -73,7 +73,7 @@ def _all_event_types() -> list[FoveaEvent]:
             (GazeTestPoint(0.5, 0.5, 0.53, 0.52, 0.04),),
             14,
         ),
-        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 15),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 15, 10.0, 20.0, 3),
     ]
 
 
@@ -163,6 +163,74 @@ def test_max_frames_reaches_source_and_limits_fake_events(monkeypatch, capsys) -
     assert exit_code == 0
     assert received["max_frames"] == 3
     assert len(capsys.readouterr().out.splitlines()) == 4
+
+
+def test_fps_reaches_source_as_max_fps(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    assert main(["run", "--ndjson", "--fps", "15"], source_factory=factory) == 0
+    assert received["max_fps"] == 15.0
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+def test_fps_defaults_to_processing_every_frame(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    assert main(["run", "--ndjson"], source_factory=factory) == 0
+    assert received["max_fps"] is None
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+def test_zero_fps_exits_two_with_one_json_error(capsys) -> None:
+    exit_code = main(["run", "--ndjson", "--fps", "0"])
+    lines = capsys.readouterr().out.splitlines()
+    assert exit_code == 2
+    assert len(lines) == 1
+    assert json.loads(lines[0])["type"] == "error"
+
+
+def test_bench_fps_reaches_benchmark_config(monkeypatch, capsys, tmp_path) -> None:
+    configs: list[object] = []
+
+    def fake_benchmark(_source: object, config: object, **_kwargs: object) -> dict[str, object]:
+        configs.append(config)
+        return {"schema": "fovea-benchmark-v1"}
+
+    monkeypatch.setattr("fovea.cli.run_live_benchmark", fake_benchmark)
+    args = [
+        "bench",
+        "--screen-width-cm",
+        "30",
+        "--screen-height-cm",
+        "20",
+        "--camera-name",
+        "integrated",
+        "--lighting",
+        "office",
+        "--glasses",
+        "none",
+        "--fps",
+        "30",
+        "--diagnostics-dir",
+        str(tmp_path / "diagnostics"),
+        "--output",
+        str(tmp_path / "report.json"),
+        "--yes",
+    ]
+    assert main(args, source_factory=lambda **_kwargs: FakeSource([])) == 0
+    assert len(configs) == 1
+    assert configs[0].max_fps == 30.0
+    capsys.readouterr()
 
 
 def test_backend_reaches_source_and_hello(monkeypatch, capsys) -> None:

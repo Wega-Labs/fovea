@@ -14,6 +14,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Event vocabulary v2 (protocol `1.1`): `saccade`, `wink`, `double_blink`, and `long_blink`
   events, an optional `gaze_point.pursuit` flag, matching `hello` capabilities, and
   `GazeSettings` thresholds for each detector.
+- Capture and latency additions (protocol `1.2`): a latest-frame hand-off, capture
+  timestamps, `GazePoint.latency_ms`, `Diagnostics` latency percentiles and
+  `dropped_frames`, and a `--fps` processing cap.
 
 ### Changed
 

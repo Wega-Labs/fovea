@@ -52,6 +52,8 @@ class GazePoint:
     snapped_x: float | None = None
     snapped_y: float | None = None
     pursuit: bool = False
+    # Capture-to-ready-to-emit milliseconds; None when unknown (replay).
+    latency_ms: float | None = None
 
     def __post_init__(self) -> None:
         _validate_confidence(self.confidence)
@@ -285,6 +287,11 @@ class Diagnostics:
     yaw_deg: float
     pitch_deg: float
     timestamp_ns: int
+    # Capture-to-ready-to-emit percentiles over recent gaze points; None before the first.
+    latency_p50_ms: float | None = None
+    latency_p95_ms: float | None = None
+    # Admitted frames discarded because a newer frame arrived first; cumulative per session.
+    dropped_frames: int = 0
 
 
 type FoveaEvent = (
