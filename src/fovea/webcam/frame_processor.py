@@ -359,7 +359,7 @@ class GazeFrameProcessor:
                 output.confidence,
                 timestamp_ns,
             )
-            if fixation is not None:
+            if fixation is not None and not velocity.moving:
                 events.append(fixation)
         else:
             self._fixation_detector.reset()

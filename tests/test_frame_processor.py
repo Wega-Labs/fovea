@@ -322,6 +322,23 @@ def test_fixation_never_co_emits_with_moving_or_pursuit_samples(tmp_path: Path) 
     assert any(isinstance(event, Fixation) for event in _flatten(per_frame[last_moving + 1 :]))
 
 
+def test_zero_stability_does_not_emit_fixations_during_a_saccade(tmp_path: Path) -> None:
+    processor = _processor(tmp_path, smoothing_alpha=1.0, stability_ms=0.0)
+    hold = synthetic_landmarks()
+    jump = synthetic_landmarks(gaze_dx=0.25)
+
+    per_frame = _drive(processor, [hold, hold] + [jump] * 8)
+
+    assert any(isinstance(event, Fixation) for event in _flatten(per_frame[:2]))
+    assert not any(isinstance(event, Fixation) for event in per_frame[2])
+    landing = next(
+        frame_events
+        for frame_events in per_frame
+        if any(isinstance(event, Saccade) for event in frame_events)
+    )
+    assert not any(isinstance(event, Fixation) for event in landing)
+
+
 def test_wizard_frames_and_the_boundary_blink_never_trigger(tmp_path: Path) -> None:
     processor = _quick_calibration(tmp_path)
     open_face = synthetic_landmarks()
