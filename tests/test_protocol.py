@@ -46,6 +46,11 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
             "windowed_calibration",
             "target_aware",
             "gaze_test_report",
+            "saccade",
+            "pursuit",
+            "wink",
+            "double_blink",
+            "long_blink",
         ],
     }
 
@@ -162,6 +167,16 @@ def test_committed_schema_matches_dataclasses() -> None:
     gaze_schema = definitions["gaze_point"]
     assert "target_id" in gaze_schema["properties"]
     assert "target_id" not in gaze_schema["required"]
+    assert gaze_schema["properties"]["pursuit"] == {"type": "boolean"}
+    assert "pursuit" not in gaze_schema["required"]
+    assert definitions["wink"]["properties"]["eye"] == {"enum": ["left", "right"]}
+    for name in ("saccade", "wink", "double_blink", "long_blink"):
+        assert definitions[name]["properties"]["type"] == {"const": name}
+
+
+def test_protocol_minor_bump_keeps_major_one() -> None:
+    assert PROTOCOL_VERSION == "1.1"
+    assert PROTOCOL_VERSION.split(".", 1)[0] == "1"
 
 
 def test_schema_command_prints_committed_schema(monkeypatch, capsys) -> None:

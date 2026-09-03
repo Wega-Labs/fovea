@@ -18,6 +18,7 @@ from fovea.events import (
     CalibrationDone,
     CalibrationWarning,
     Diagnostics,
+    DoubleBlink,
     Dwell,
     DwellProgress,
     Eye,
@@ -28,11 +29,14 @@ from fovea.events import (
     GazeTestPoint,
     Gesture,
     GesturePhase,
+    LongBlink,
     Manipulation,
+    Saccade,
     TargetEnter,
     TargetLeave,
     TrackingState,
     TrackingStatus,
+    Wink,
 )
 from fovea.protocol import hello_json
 from fovea.serialize import event_type_name, to_json
@@ -44,13 +48,17 @@ from fovea.webcam.targeting import TargetRect
 
 def _all_event_types() -> list[FoveaEvent]:
     return [
-        GazePoint(0.25, 0.75, 0.9, 1, "card-1", 0.3, 0.8),
+        GazePoint(0.25, 0.75, 0.9, 1, "card-1", 0.3, 0.8, True),
         TargetEnter("card-1", 2),
         TargetLeave("card-1", 3),
         DwellProgress("card-1", 0.5, 4),
         Dwell("card-1", 5),
         Fixation(0.25, 0.75, 300.0, 0.8, 6),
         Blink(Eye.BOTH, 120.0, 0.7, 7),
+        Saccade(0.2, 0.2, 0.7, 0.6, 0.64, 45.0, 16),
+        Wink(Eye.LEFT, 180.0, 0.8, 17),
+        DoubleBlink(18),
+        LongBlink(700.0, 19),
         Gesture("pinch", GesturePhase.STARTED, 0.9, 8),
         Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 9),
         TrackingState(TrackingStatus.UNCERTAIN, 0.5, 10, "Move closer"),
@@ -76,6 +84,15 @@ def test_every_event_serializes_to_ndjson(event: FoveaEvent) -> None:
     expected = json.loads(json.dumps(asdict(event)))
     assert payload == expected
     assert "\n" not in to_json(event)
+
+
+def test_gaze_point_ndjson_carries_pursuit_false_by_default() -> None:
+    payload = json.loads(to_json(GazePoint(0.5, 0.5, 0.9, 1)))
+    assert payload["pursuit"] is False
+
+
+def test_wink_ndjson_uses_the_eye_label_string() -> None:
+    assert json.loads(to_json(Wink(Eye.RIGHT, 150.0, 0.6, 2)))["eye"] == "right"
 
 
 class FakeSource:

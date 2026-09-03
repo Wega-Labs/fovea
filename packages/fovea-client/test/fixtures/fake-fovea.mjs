@@ -5,9 +5,10 @@ const arguments_ = process.argv.slice(2);
 const option = (name, fallback = "") =>
   arguments_.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const scenario = option("scenario", "normal");
+const protocol = option("protocol", "1.0");
 const hello = JSON.stringify({
   type: "hello",
-  protocol: "1.0",
+  protocol,
   fovea: "test",
   backend: "fake",
   coordinate_space: "display_normalized",

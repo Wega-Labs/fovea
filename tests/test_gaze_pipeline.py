@@ -442,7 +442,7 @@ def test_diagnostics_rate_limit_is_two_hz() -> None:
 
 
 def test_gaze_test_report_converts_to_typed_event() -> None:
-    from fovea.webcam.event_source import _gaze_test_event
+    from fovea.webcam.frame_processor import _gaze_test_event
 
     report: dict[str, object] = {
         "n": 1,

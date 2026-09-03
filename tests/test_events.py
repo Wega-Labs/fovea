@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from fovea import Diagnostics, GazePoint, TrackingState, TrackingStatus
+from fovea import Diagnostics, Eye, GazePoint, TrackingState, TrackingStatus, Wink
 
 
 def test_gaze_point_is_immutable() -> None:
@@ -17,6 +17,15 @@ def test_gaze_point_target_fields_default_to_none() -> None:
     assert point.target_id is None
     assert point.snapped_x is None
     assert point.snapped_y is None
+
+
+def test_gaze_point_pursuit_defaults_to_false() -> None:
+    assert GazePoint(x=0.25, y=0.75, confidence=0.9, timestamp_ns=1).pursuit is False
+
+
+def test_wink_rejects_both_eyes() -> None:
+    with pytest.raises(ValueError, match="left or right"):
+        Wink(eye=Eye.BOTH, duration_ms=150.0, confidence=0.8, timestamp_ns=1)  # type: ignore[arg-type]
 
 
 def test_tracking_detail_defaults_to_empty() -> None:

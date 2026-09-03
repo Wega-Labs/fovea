@@ -6,6 +6,7 @@ from fovea.events import (
     CalibrationDone,
     CalibrationWarning,
     Diagnostics,
+    DoubleBlink,
     Dwell,
     DwellProgress,
     Eye,
@@ -16,11 +17,14 @@ from fovea.events import (
     GazeTestPoint,
     Gesture,
     GesturePhase,
+    LongBlink,
     Manipulation,
+    Saccade,
     TargetEnter,
     TargetLeave,
     TrackingState,
     TrackingStatus,
+    Wink,
 )
 from fovea.interfaces import EventSink, EventSource
 from fovea.webcam import (
@@ -39,6 +43,7 @@ __all__ = [
     "CalibrationDone",
     "CalibrationWarning",
     "Diagnostics",
+    "DoubleBlink",
     "Dwell",
     "DwellProgress",
     "EventSink",
@@ -55,7 +60,9 @@ __all__ = [
     "GesturePhase",
     "LandmarkBackend",
     "LandmarkObservation",
+    "LongBlink",
     "Manipulation",
+    "Saccade",
     "TargetEnter",
     "TargetLeave",
     "TargetRect",
@@ -63,6 +70,7 @@ __all__ = [
     "TrackingState",
     "TrackingStatus",
     "WebcamEventSource",
+    "Wink",
 ]
 
 __version__ = "0.1.0"
