@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from fovea.cli import main
-from fovea.events import GazePoint, TrackingState
+from fovea.events import Blink, Fixation, GazePoint, TrackingState
 from fovea.serialize import to_json
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, load_model
 from fovea.webcam.engine import GazeSettings
@@ -213,3 +214,31 @@ def test_replay_event_types_are_public_contract(tmp_path) -> None:
     events = list(source.events())
     assert any(isinstance(event, TrackingState) for event in events)
     assert any(isinstance(event, GazePoint) for event in events)
+
+
+def test_replay_emits_fixations_and_measured_blinks_like_live_capture(tmp_path) -> None:
+    fixture = tmp_path / "hold_and_blink.jsonl"
+    frames = [synthetic_landmarks()] * 15 + [synthetic_landmarks(blink=True)] * 3
+    frames += [synthetic_landmarks()] * 2
+    _write_fixture(fixture, [_frame(points, index) for index, points in enumerate(frames)])
+    source = ReplayEventSource(
+        path=fixture,
+        settings=GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        project_root=tmp_path,
+    )
+    events = list(source.events())
+
+    fixations = [event for event in events if isinstance(event, Fixation)]
+    assert fixations
+    assert fixations[0].duration_ms >= 300.0
+    blinks = [event for event in events if isinstance(event, Blink)]
+    assert len(blinks) == 1
+    assert blinks[0].duration_ms == pytest.approx(100.0, abs=0.001)
+    assert all(event.pursuit is False for event in events if isinstance(event, GazePoint))
+
+
+def test_replay_gaze_points_serialize_the_pursuit_flag(tmp_path) -> None:
+    decoded = [json.loads(line) for line in _replay(tmp_path)]
+    gaze_lines = [item for item in decoded if item["type"] == "gaze_point"]
+    assert gaze_lines
+    assert all(item["pursuit"] is False for item in gaze_lines)

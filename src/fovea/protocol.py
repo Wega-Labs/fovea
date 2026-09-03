@@ -16,20 +16,24 @@ from fovea.events import (
     CalibrationDone,
     CalibrationWarning,
     Diagnostics,
+    DoubleBlink,
     Dwell,
     DwellProgress,
     Fixation,
     GazePoint,
     GazeTestDone,
     Gesture,
+    LongBlink,
     Manipulation,
+    Saccade,
     TargetEnter,
     TargetLeave,
     TrackingState,
+    Wink,
 )
 from fovea.serialize import event_type_name
 
-PROTOCOL_VERSION = "1.0"
+PROTOCOL_VERSION = "1.1"
 COORDINATE_SPACE = "display_normalized"
 
 
@@ -95,6 +99,10 @@ EVENT_TYPES = (
     Dwell,
     Fixation,
     Blink,
+    Saccade,
+    Wink,
+    DoubleBlink,
+    LongBlink,
     Gesture,
     Manipulation,
     TrackingState,
@@ -135,6 +143,11 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
             "windowed_calibration",
             "target_aware",
             "gaze_test_report",
+            "saccade",
+            "pursuit",
+            "wink",
+            "double_blink",
+            "long_blink",
         ],
     }
 
@@ -258,7 +271,9 @@ def _parse_targets_command(payload: dict[str, object]) -> TargetsCommand:
 def _type_schema(annotation: object) -> dict[str, object]:
     origin = get_origin(annotation)
     if origin is Literal:
-        values = list(get_args(annotation))
+        values = [
+            value.value if isinstance(value, StrEnum) else value for value in get_args(annotation)
+        ]
         if len(values) == 1:
             return {"const": values[0]}
         return {"enum": values}

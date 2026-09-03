@@ -8,20 +8,8 @@ from collections import deque
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import cast
 
-from fovea.events import (
-    CalibrationCue,
-    CalibrationDone,
-    CalibrationWarning,
-    Diagnostics,
-    FoveaEvent,
-    GazePoint,
-    GazeTestDone,
-    GazeTestPoint,
-    TrackingState,
-    TrackingStatus,
-)
+from fovea.events import CalibrationWarning, FoveaEvent
 from fovea.webcam.backend import create_landmark_backend
 from fovea.webcam.calibration import (
     CalibrationIdentity,
@@ -30,88 +18,16 @@ from fovea.webcam.calibration import (
 )
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
-from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
+from fovea.webcam.engine import GazeEngine, GazeSettings
+from fovea.webcam.frame_processor import GazeFrameProcessor
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
-from fovea.webcam.targeting import TargetMatch, TargetRect, TargetTracker, validate_targets
-from fovea.webcam.temporal import BlinkDetector, FixationDetector
-
-
-def _tracking_status(label: str) -> TrackingStatus:
-    if label == "GOOD":
-        return TrackingStatus.ACTIVE
-    if label in {"FAIR", "POOR"}:
-        return TrackingStatus.UNCERTAIN
-    return TrackingStatus.LOST
-
+from fovea.webcam.targeting import TargetRect, validate_targets
 
 _DIAGNOSTICS_INTERVAL_SECONDS = 0.5
 
 
 def _diagnostics_due(last_emitted: float | None, now: float) -> bool:
     return last_emitted is None or now - last_emitted >= _DIAGNOSTICS_INTERVAL_SECONDS
-
-
-def _diagnostics_event(output: GazeOutput, timestamp_ns: int) -> Diagnostics:
-    features = output.features
-    return Diagnostics(
-        fps=output.fps,
-        latency_ms=output.latency_ms,
-        face_width=0.0 if features is None else features.face_width,
-        yaw_deg=0.0 if features is None else features.yaw_deg,
-        pitch_deg=0.0 if features is None else features.pitch_deg,
-        timestamp_ns=timestamp_ns,
-    )
-
-
-def _gaze_test_event(report: dict[str, object], timestamp_ns: int) -> GazeTestDone | None:
-    points_raw = report.get("points")
-    n_points = report.get("n")
-    mean_error = report.get("mean_error")
-    median_error = report.get("median_error")
-    max_error = report.get("max_error")
-    aggregates = (n_points, mean_error, median_error, max_error)
-    if any(not isinstance(value, int | float) or isinstance(value, bool) for value in aggregates):
-        return None
-    if not isinstance(points_raw, list):
-        return None
-    points: list[GazeTestPoint] = []
-    for point_raw in points_raw:
-        if not isinstance(point_raw, dict):
-            return None
-        expected = point_raw.get("expected")
-        predicted = point_raw.get("predicted")
-        error = point_raw.get("error")
-        if not isinstance(expected, list) or len(expected) != 2:
-            return None
-        if not isinstance(predicted, list) or len(predicted) != 2:
-            return None
-        coordinates: list[float] = []
-        for value in (*expected, *predicted, error):
-            if not isinstance(value, int | float) or isinstance(value, bool):
-                return None
-            coordinates.append(float(value))
-        expected_x, expected_y, predicted_x, predicted_y, point_error = coordinates
-        points.append(
-            GazeTestPoint(
-                expected_x=expected_x,
-                expected_y=expected_y,
-                predicted_x=predicted_x,
-                predicted_y=predicted_y,
-                error=point_error,
-            )
-        )
-    assert isinstance(n_points, int | float)
-    assert isinstance(mean_error, int | float)
-    assert isinstance(median_error, int | float)
-    assert isinstance(max_error, int | float)
-    return GazeTestDone(
-        n_points=int(n_points),
-        mean_error=float(mean_error),
-        median_error=float(median_error),
-        max_error=float(max_error),
-        points=tuple(points),
-        timestamp_ns=timestamp_ns,
-    )
 
 
 @dataclass
@@ -147,7 +63,7 @@ class WebcamEventSource:
         default=None, init=False, repr=False
     )
     _targets: tuple[TargetRect, ...] = field(default=(), init=False, repr=False)
-    _target_tracker: TargetTracker | None = field(default=None, init=False, repr=False)
+    _processor: GazeFrameProcessor | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.project_root is not None:
@@ -174,27 +90,15 @@ class WebcamEventSource:
         )
         engine = GazeEngine(self.settings, identity=identity)
         self._engine = engine
+        # One processor per session: its detectors are the session boundary.
+        processor = GazeFrameProcessor(engine, self.settings, targets=self._targets)
+        self._processor = processor
         frames = 0
         t0 = time.perf_counter()
         frame_count = 0
         fps = 0.0
         last_time = time.perf_counter()
-        blink_detector = BlinkDetector()
-        fixation_detector = FixationDetector(
-            stability_ms=self.settings.stability_ms,
-            radius=self.settings.hysteresis,
-        )
-        target_tracker = TargetTracker(
-            dwell_ms=self.settings.dwell_ms,
-            hysteresis=self.settings.hysteresis,
-            expand=self.settings.target_expand,
-            snap_radius=self.settings.snap_radius,
-            targets=self._targets,
-        )
-        self._target_tracker = target_tracker
         last_diagnostics_at: float | None = None
-        emitted_calibration_report: dict[str, object] | None = None
-        emitted_test_report: dict[str, object] | None = None
 
         try:
             camera.connect()
@@ -223,137 +127,45 @@ class WebcamEventSource:
 
                 frame = camera.read()
                 timestamp_ns = time.time_ns()
+                diagnostics_due = self.diagnostics and _diagnostics_due(last_diagnostics_at, now)
                 if frame is None:
-                    blink_detector.reset()
-                    fixation_detector.reset()
-                    target_tracker.freeze(timestamp_ns)
-                    yield TrackingState(
-                        status=TrackingStatus.LOST,
-                        confidence=0.0,
-                        timestamp_ns=timestamp_ns,
+                    events = processor.events_for_lost_frame(
+                        fps,
+                        timestamp_ns,
+                        diagnostics_due=diagnostics_due,
                     )
-                    if self.diagnostics and _diagnostics_due(last_diagnostics_at, now):
-                        yield Diagnostics(
-                            fps=fps,
-                            latency_ms=0.0,
-                            face_width=0.0,
-                            yaw_deg=0.0,
-                            pitch_deg=0.0,
-                            timestamp_ns=timestamp_ns,
-                        )
-                        last_diagnostics_at = now
-                    frames += 1
-                    continue
-
-                observation = estimator.process(frame)
-                h, w = frame.shape[:2]
-                landmarks = None if observation is None else observation.landmarks
-                blendshapes = None if observation is None else observation.blendshapes
-                output = engine.process(
-                    landmarks, float(w), float(h), dt, fps, blendshapes=blendshapes
-                )
-
-                wizard = engine.wizard
-                if wizard is not None and not wizard.done:
-                    yield CalibrationCue(
-                        label=wizard.label,
-                        x=wizard.sx,
-                        y=wizard.sy,
-                        index=wizard.index,
-                        total=len(engine.targets),
-                        samples=wizard.samples,
-                        needed=wizard.needed,
-                        instruction=wizard.instruction,
-                        timestamp_ns=timestamp_ns,
+                else:
+                    observation = estimator.process(frame)
+                    h, w = frame.shape[:2]
+                    landmarks = None if observation is None else observation.landmarks
+                    blendshapes = None if observation is None else observation.blendshapes
+                    events = processor.events_for_frame(
+                        landmarks,
+                        float(w),
+                        float(h),
+                        dt,
+                        fps,
+                        timestamp_ns,
+                        blendshapes,
+                        diagnostics_due=diagnostics_due,
                     )
-                    if self._display is not None:
-                        self._display.show(wizard, engine.targets)
-                elif self._display is not None:
-                    display = self._display
-                    self._display = None
-                    display.close()
-
-                status = _tracking_status(output.tracking)
-                yield TrackingState(
-                    status=status,
-                    confidence=output.confidence,
-                    timestamp_ns=timestamp_ns,
-                    detail="" if output.features is None else output.features.message,
-                )
-
-                if self.diagnostics and _diagnostics_due(last_diagnostics_at, now):
-                    yield _diagnostics_event(output, timestamp_ns)
+                    self._sync_display(engine)
+                if diagnostics_due:
                     last_diagnostics_at = now
-
-                calibration_report = engine.last_calibration_report
-                if calibration_report and calibration_report is not emitted_calibration_report:
-                    yield CalibrationDone(
-                        n_points=cast(int, calibration_report["n_points"]),
-                        coverage=cast(float, calibration_report["coverage"]),
-                        loo_error=cast(float, calibration_report["loo_error"]),
-                        timestamp_ns=timestamp_ns,
-                    )
-                    emitted_calibration_report = calibration_report
-
-                test_report = engine.last_test_report
-                if test_report and test_report is not emitted_test_report:
-                    test_event = _gaze_test_event(test_report, timestamp_ns)
-                    if test_event is not None:
-                        engine.resume_after_gaze_test()
-                        yield test_event
-                        emitted_test_report = test_report
-
-                if output.features is None or output.tracking == "LOST":
-                    blink_detector.reset()
-                    fixation_detector.reset()
-                else:
-                    blink_event = blink_detector.update(
-                        output.features.blink,
-                        output.confidence,
-                        timestamp_ns,
-                    )
-                    if blink_event is not None:
-                        yield blink_event
-
-                target_match: TargetMatch | None = None
-                target_events: tuple[FoveaEvent, ...] = ()
-                if status is TrackingStatus.ACTIVE and output.valid and output.screen is not None:
-                    target_update = target_tracker.update(
-                        output.screen.x,
-                        output.screen.y,
-                        output.confidence,
-                        timestamp_ns,
-                    )
-                    target_match = target_update.match
-                    target_events = target_update.events
-                else:
-                    target_match = target_tracker.freeze(timestamp_ns)
-
-                if output.valid and output.screen is not None:
-                    yield GazePoint(
-                        x=output.screen.x,
-                        y=output.screen.y,
-                        confidence=output.confidence,
-                        timestamp_ns=timestamp_ns,
-                        target_id=(None if target_match is None else target_match.target_id),
-                        snapped_x=(None if target_match is None else target_match.snapped_x),
-                        snapped_y=(None if target_match is None else target_match.snapped_y),
-                    )
-                    yield from target_events
-                    fixation = fixation_detector.update(
-                        output.screen.x,
-                        output.screen.y,
-                        output.confidence,
-                        timestamp_ns,
-                    )
-                    if fixation is not None:
-                        yield fixation
-                else:
-                    fixation_detector.reset()
-
+                yield from events
                 frames += 1
         finally:
             self.close()
+
+    def _sync_display(self, engine: GazeEngine) -> None:
+        wizard = engine.wizard
+        if wizard is not None and not wizard.done:
+            if self._display is not None:
+                self._display.show(wizard, engine.targets)
+        elif self._display is not None:
+            display = self._display
+            self._display = None
+            display.close()
 
     def start_calibration(
         self,
@@ -399,11 +211,10 @@ class WebcamEventSource:
     def set_targets(self, targets: Sequence[TargetRect]) -> None:
         """Replace host-registered targets between frames."""
         self._targets = validate_targets(tuple(targets))
-        if self._target_tracker is None:
+        processor = self._processor
+        if processor is None:
             return
-        self._pending_events.extend(
-            self._target_tracker.replace_targets(self._targets, time.time_ns())
-        )
+        self._pending_events.extend(processor.replace_targets(self._targets, time.time_ns()))
 
     def _show_wizard(self) -> None:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:
@@ -420,7 +231,7 @@ class WebcamEventSource:
         """
         self._closed = True
         self._engine = None
-        self._target_tracker = None
+        self._processor = None
         display = self._display
         self._display = None
         if display is not None:
