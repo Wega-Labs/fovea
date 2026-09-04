@@ -34,7 +34,7 @@ test("validates a split hello and drives calibration", async (context) => {
   context.after(() => client.close());
 
   const hello = await client.ready;
-  assert.equal(hello.protocol, "1.1");
+  assert.equal(hello.protocol, "1.0");
   assert.equal(hello.backend, "fake");
   const cues: Array<string> = [];
   const result = await client.runCalibration({
@@ -140,6 +140,16 @@ test("can reconnect with bounded exponential backoff", async (context) => {
   await reconnected;
 
   assert.deepEqual(attempts, [1]);
+  assert.equal(client.status, "running");
+});
+
+test("accepts a newer protocol minor within the supported major", async (context) => {
+  const client = spawnFake("normal", { args: ["--protocol=1.2"] });
+  context.after(() => client.close());
+
+  const hello = await client.ready;
+
+  assert.equal(hello.protocol, "1.2");
   assert.equal(client.status, "running");
 });
 

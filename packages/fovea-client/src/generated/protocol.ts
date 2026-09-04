@@ -9,6 +9,8 @@ export interface GazePoint {
   readonly target_id?: string | null;
   readonly snapped_x?: number | null;
   readonly snapped_y?: number | null;
+  readonly pursuit?: boolean;
+  readonly latency_ms?: number | null;
 }
 
 export interface TargetEnter {
@@ -50,6 +52,36 @@ export interface Blink {
   readonly eye: "left" | "right" | "both";
   readonly duration_ms: number;
   readonly confidence: number;
+  readonly timestamp_ns: number;
+}
+
+export interface Saccade {
+  readonly type: "saccade";
+  readonly from_x: number;
+  readonly from_y: number;
+  readonly to_x: number;
+  readonly to_y: number;
+  readonly amplitude: number;
+  readonly duration_ms: number;
+  readonly timestamp_ns: number;
+}
+
+export interface Wink {
+  readonly type: "wink";
+  readonly eye: "left" | "right";
+  readonly duration_ms: number;
+  readonly confidence: number;
+  readonly timestamp_ns: number;
+}
+
+export interface DoubleBlink {
+  readonly type: "double_blink";
+  readonly timestamp_ns: number;
+}
+
+export interface LongBlink {
+  readonly type: "long_blink";
+  readonly duration_ms: number;
   readonly timestamp_ns: number;
 }
 
@@ -140,6 +172,9 @@ export interface Diagnostics {
   readonly yaw_deg: number;
   readonly pitch_deg: number;
   readonly timestamp_ns: number;
+  readonly latency_p50_ms?: number | null;
+  readonly latency_p95_ms?: number | null;
+  readonly dropped_frames?: number;
 }
 
 export interface CalibrateCommand {
@@ -200,6 +235,10 @@ export type FoveaEvent =
   | Dwell
   | Fixation
   | Blink
+  | Saccade
+  | Wink
+  | DoubleBlink
+  | LongBlink
   | Gesture
   | Manipulation
   | TrackingState
@@ -227,6 +266,10 @@ export const FOVEA_EVENT_TYPES = [
   "dwell",
   "fixation",
   "blink",
+  "saccade",
+  "wink",
+  "double_blink",
+  "long_blink",
   "gesture",
   "manipulation",
   "tracking_state",

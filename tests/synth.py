@@ -62,11 +62,22 @@ def synthetic_landmarks(
     gaze_dx: float = 0.0,
     gaze_dy: float = 0.0,
     blink: bool = False,
+    left_closed: bool | None = None,
+    right_closed: bool | None = None,
+    left_valid: bool = True,
+    right_valid: bool = True,
     face_width: float = 0.44,
     image_w: int = 640,
     image_h: int = 480,
 ) -> list[SyntheticLandmark]:
-    """Project a face and add parametric irises/eyelids without image pixels."""
+    """Project a face and add parametric irises/eyelids without image pixels.
+
+    ``blink`` closes both eyes. ``left_closed``/``right_closed`` override one
+    eye's closure, and ``left_valid``/``right_valid`` collapse that eye's lid
+    rows onto one row so ``extract_eye`` reports it invalid. ``left`` and
+    ``right`` are MediaPipe topology labels (indices 263/362/473 and
+    33/133/468), matching ``GazeFeatures.left``/``right``.
+    """
     camera = np.array(
         (
             (image_w, 0.0, image_w / 2),
@@ -90,16 +101,32 @@ def synthetic_landmarks(
     right_outer = points[RIGHT_EYE_OUTER_FOR_POSE]
     left_outer = points[LEFT_EYE_OUTER_FOR_POSE]
     eye_width = 0.10
-    eye_height = 0.01 if blink else 0.08
     right_inner_x = right_outer.x + eye_width
     left_inner_x = left_outer.x - eye_width
     points[RIGHT_INNER] = SyntheticLandmark(right_inner_x, right_outer.y)
     points[LEFT_INNER] = SyntheticLandmark(left_inner_x, left_outer.y)
 
-    for outer, inner_x, upper, lower, iris in (
-        (right_outer, right_inner_x, RIGHT_UPPER, RIGHT_LOWER, RIGHT_IRIS_RING),
-        (left_outer, left_inner_x, LEFT_UPPER, LEFT_LOWER, LEFT_IRIS_RING),
+    for outer, inner_x, upper, lower, iris, closed, valid in (
+        (
+            right_outer,
+            right_inner_x,
+            RIGHT_UPPER,
+            RIGHT_LOWER,
+            RIGHT_IRIS_RING,
+            blink if right_closed is None else right_closed,
+            right_valid,
+        ),
+        (
+            left_outer,
+            left_inner_x,
+            LEFT_UPPER,
+            LEFT_LOWER,
+            LEFT_IRIS_RING,
+            blink if left_closed is None else left_closed,
+            left_valid,
+        ),
     ):
+        eye_height = 0.0 if not valid else (0.01 if closed else 0.08)
         top = outer.y - eye_height / 2
         bottom = outer.y + eye_height / 2
         center_x = min(outer.x, inner_x) + clamp01(0.5 + gaze_dx) * eye_width

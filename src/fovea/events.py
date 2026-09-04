@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 
 
 class Eye(StrEnum):
@@ -37,7 +38,11 @@ def _validate_confidence(confidence: float) -> None:
 
 @dataclass(frozen=True, slots=True)
 class GazePoint:
-    """A calibrated gaze coordinate in an adapter-defined coordinate space."""
+    """A calibrated gaze coordinate in an adapter-defined coordinate space.
+
+    ``pursuit`` is true while the gaze is tracking a smoothly moving target:
+    sustained sub-saccadic, directionally coherent motion.
+    """
 
     x: float
     y: float
@@ -46,6 +51,9 @@ class GazePoint:
     target_id: str | None = None
     snapped_x: float | None = None
     snapped_y: float | None = None
+    pursuit: bool = False
+    # Capture-to-ready-to-emit milliseconds; None when unknown (replay).
+    latency_ms: float | None = None
 
     def __post_init__(self) -> None:
         _validate_confidence(self.confidence)
@@ -113,6 +121,60 @@ class Blink:
 
     def __post_init__(self) -> None:
         _validate_confidence(self.confidence)
+
+
+@dataclass(frozen=True, slots=True)
+class Saccade:
+    """A rapid gaze jump between two positions, reported when it lands.
+
+    ``from_x``/``from_y`` are the last stable point before the jump and
+    ``to_x``/``to_y`` the landing point, both in the adapter's coordinate
+    space. ``amplitude`` is the Euclidean distance between them in that space,
+    ``duration_ms`` spans onset to landing, and ``timestamp_ns`` is the landing
+    time.
+    """
+
+    from_x: float
+    from_y: float
+    to_x: float
+    to_y: float
+    amplitude: float
+    duration_ms: float
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class Wink:
+    """A deliberate single-eye closure while the other eye stayed open.
+
+    ``eye`` names the closed eye by the landmark topology label the engine was
+    given (``features.left`` is ``Eye.LEFT``), not the user's anatomical side.
+    """
+
+    eye: Literal[Eye.LEFT, Eye.RIGHT]
+    duration_ms: float
+    confidence: float
+    timestamp_ns: int
+
+    def __post_init__(self) -> None:
+        if self.eye not in (Eye.LEFT, Eye.RIGHT):
+            raise ValueError("wink eye must be left or right")
+        _validate_confidence(self.confidence)
+
+
+@dataclass(frozen=True, slots=True)
+class DoubleBlink:
+    """Two natural blinks in quick succession; the timestamp is the second reopen."""
+
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class LongBlink:
+    """A deliberate blink held longer than the user's natural blink duration."""
+
+    duration_ms: float
+    timestamp_ns: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,6 +296,11 @@ class Diagnostics:
     yaw_deg: float
     pitch_deg: float
     timestamp_ns: int
+    # Capture-to-ready-to-emit percentiles over recent gaze points; None before the first.
+    latency_p50_ms: float | None = None
+    latency_p95_ms: float | None = None
+    # Admitted frames discarded because a newer frame arrived first; cumulative per session.
+    dropped_frames: int = 0
 
 
 type FoveaEvent = (
@@ -244,6 +311,10 @@ type FoveaEvent = (
     | Dwell
     | Fixation
     | Blink
+    | Saccade
+    | Wink
+    | DoubleBlink
+    | LongBlink
     | Gesture
     | Manipulation
     | TrackingState

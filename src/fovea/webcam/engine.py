@@ -38,7 +38,20 @@ from fovea.webcam.smoothing import OneEuroPoint, ema
 
 @dataclass
 class GazeSettings:
-    """Gaze pipeline, target selection, and dwell thresholds."""
+    """Gaze pipeline, target selection, dwell, and event-vocabulary thresholds.
+
+    The saccade, pursuit, wink, and blink-trigger values are heuristics tuned
+    on synthetic streams rather than guarantees. Velocities are in
+    display-normalized units per second. ``pursuit_velocity`` marks the slowest
+    motion that counts as moving; ``saccade_velocity`` is the I-VT threshold
+    above it. A pursuit is reported only after ``pursuit_ms`` of continuous
+    in-band motion whose net displacement over path length reaches
+    ``pursuit_coherence``. A wink must last between ``wink_min_ms`` and
+    ``wink_max_ms``. Two natural blinks within ``double_blink_ms`` form a double
+    blink. ``long_blink_ms`` is the cold-start long-blink floor, raised to
+    ``long_blink_factor`` times the median of the last ``natural_blink_window``
+    natural blinks once enough have been observed.
+    """
 
     dwell_ms: float = 500.0
     stability_ms: float = 300.0
@@ -57,6 +70,16 @@ class GazeSettings:
     calibration_path: str | Path | None = None
     debug: bool = True
     online_calibration: bool = True
+    saccade_velocity: float = 1.5
+    pursuit_velocity: float = 0.3
+    pursuit_ms: float = 100.0
+    pursuit_coherence: float = 0.7
+    wink_min_ms: float = 120.0
+    wink_max_ms: float = 700.0
+    double_blink_ms: float = 500.0
+    long_blink_ms: float = 600.0
+    long_blink_factor: float = 2.0
+    natural_blink_window: int = 30
 
 
 @dataclass

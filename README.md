@@ -207,6 +207,7 @@ src/fovea/
 ├── webcam/
 │   ├── backend.py      # LandmarkBackend protocol + MediaPipe implementation
 │   ├── camera.py       # OpenCV webcam capture
+│   ├── capture.py      # capture thread, latest-frame hand-off, fps gate
 │   ├── landmarks.py    # BGR camera compatibility session
 │   ├── features.py     # iris + head-pose gaze features
 │   ├── calibration.py  # 10-point ridge calibration
@@ -308,6 +309,15 @@ The process exits `0` on normal completion or signal-driven shutdown, `2` for us
 configuration errors, `3` for camera errors, and `4` for model/runtime errors. Fatal errors are a
 single JSON object on stdout so non-Python hosts can parse them consistently.
 
+Camera frames are read on a capture thread and handed over through a single slot, so a slow
+host always receives the newest frame instead of a growing backlog. Each `GazePoint` carries
+`latency_ms`, the milliseconds from capture to the moment the frame's events are ready to emit,
+and `Diagnostics` reports the p50/p95 of that latency plus the cumulative `dropped_frames`
+count. `--fps N` caps the processing rate by skipping camera frames before inference.
+`--max-frames N` counts iterations of the processing loop (frames handed to the pipeline plus
+observed read failures), not raw camera reads, so with `--fps` or a slow host the run lasts
+longer in wall-clock time and skipped or dropped frames are not counted.
+
 On macOS, camera permission is attributed to the responsible app that launches Fovea. A Python
 child process spawned by a terminal or desktop host uses that host application's camera grant;
 the permission prompt may therefore name the terminal or host rather than `fovea`.
@@ -325,7 +335,7 @@ freeze while tracking is uncertain or lost.
 
 Live performance is measured with the guided `fovea bench` command. It records
 accuracy at 50/60/75 cm, two-second fixation jitter, yaw robustness, ten-minute
-drift, and inference latency in a JSON report. Use the comparable-run procedure
+drift, inference latency, and end-to-end latency in a JSON report. Use the comparable-run procedure
 in [bench/PROTOCOL.md](bench/PROTOCOL.md); verified results belong in
 [BENCHMARKS.md](BENCHMARKS.md).
 

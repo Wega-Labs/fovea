@@ -25,6 +25,18 @@
       "$ref": "#/$defs/blink"
     },
     {
+      "$ref": "#/$defs/saccade"
+    },
+    {
+      "$ref": "#/$defs/wink"
+    },
+    {
+      "$ref": "#/$defs/double_blink"
+    },
+    {
+      "$ref": "#/$defs/long_blink"
+    },
+    {
       "$ref": "#/$defs/gesture"
     },
     {
@@ -114,6 +126,19 @@
           ]
         },
         "snapped_y": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pursuit": {
+          "type": "boolean"
+        },
+        "latency_ms": {
           "anyOf": [
             {
               "type": "number"
@@ -278,6 +303,113 @@
         "eye",
         "duration_ms",
         "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "saccade": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "saccade"
+        },
+        "from_x": {
+          "type": "number"
+        },
+        "from_y": {
+          "type": "number"
+        },
+        "to_x": {
+          "type": "number"
+        },
+        "to_y": {
+          "type": "number"
+        },
+        "amplitude": {
+          "type": "number"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "from_x",
+        "from_y",
+        "to_x",
+        "to_y",
+        "amplitude",
+        "duration_ms",
+        "timestamp_ns"
+      ]
+    },
+    "wink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "wink"
+        },
+        "eye": {
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "eye",
+        "duration_ms",
+        "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "double_blink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "double_blink"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "timestamp_ns"
+      ]
+    },
+    "long_blink": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "long_blink"
+        },
+        "duration_ms": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "duration_ms",
         "timestamp_ns"
       ]
     },
@@ -608,6 +740,29 @@
           "type": "number"
         },
         "timestamp_ns": {
+          "type": "integer"
+        },
+        "latency_p50_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "latency_p95_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dropped_frames": {
           "type": "integer"
         }
       },

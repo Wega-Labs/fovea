@@ -20,6 +20,7 @@ from fovea.events import (
     TrackingStatus,
 )
 from fovea.interfaces import EventSource
+from fovea.util import percentile
 
 MEDIAN_ERROR_TARGET = 0.06
 MEDIAN_DEGREES_TARGET = 3.0
@@ -45,10 +46,13 @@ class BenchmarkConfig:
     yaw_seconds: float = 2.0
     drift_seconds: float = 600.0
     backend: str = "mediapipe"
+    max_fps: float | None = None
 
     def __post_init__(self) -> None:
         if self.capture_width < 1 or self.capture_height < 1:
             raise ValueError("capture dimensions must be positive")
+        if self.max_fps is not None and not (math.isfinite(self.max_fps) and self.max_fps > 0.0):
+            raise ValueError("max_fps must be a finite number greater than zero")
         if self.camera_index < 0:
             raise ValueError("camera index must be non-negative")
         positive = (self.screen_width_cm, self.screen_height_cm, self.fixation_seconds)
@@ -60,21 +64,6 @@ class BenchmarkConfig:
         metadata = (self.camera_name, self.lighting, self.glasses, self.backend)
         if not all(value.strip() for value in metadata):
             raise ValueError("camera, lighting, glasses, and backend metadata must be non-empty")
-
-
-def percentile(values: list[float], quantile: float) -> float | None:
-    if not values:
-        return None
-    if not 0.0 <= quantile <= 1.0:
-        raise ValueError("quantile must be within [0, 1]")
-    ordered = sorted(values)
-    position = (len(ordered) - 1) * quantile
-    lower = math.floor(position)
-    upper = math.ceil(position)
-    if lower == upper:
-        return ordered[lower]
-    weight = position - lower
-    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
 
 
 def distribution(values: list[float]) -> dict[str, float | int | None]:
@@ -167,10 +156,13 @@ def run_live_benchmark(
     """Run the guided protocol over a live event source and return a JSON-safe report."""
     events = iter(source.events())
     latency_samples: list[float] = []
+    end_to_end_samples: list[float] = []
 
     def observe(event: FoveaEvent) -> None:
         if isinstance(event, Diagnostics):
             latency_samples.append(event.latency_ms)
+        elif isinstance(event, GazePoint) and event.latency_ms is not None:
+            end_to_end_samples.append(event.latency_ms)
 
     prompt("Sit about 60 cm from the display, then begin the guided calibration.")
     _invoke_source(source, "start_calibration")
@@ -241,6 +233,7 @@ def run_live_benchmark(
             "glasses": config.glasses,
             "screen_width_cm": config.screen_width_cm,
             "screen_height_cm": config.screen_height_cm,
+            "processing_fps_cap": config.max_fps,
         },
         "public_targets": {
             "median_normalized_error_max": MEDIAN_ERROR_TARGET,
@@ -259,6 +252,7 @@ def run_live_benchmark(
             "median_normalized_error_delta": drift_test.median_error - baseline.median_error,
         },
         "latency_ms": distribution(latency_samples),
+        "end_to_end_latency_ms": distribution(end_to_end_samples),
     }
 
 

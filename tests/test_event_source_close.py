@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import threading
+from collections.abc import Callable
 from typing import ClassVar
 
 import numpy as np
+import pytest
 
-from fovea.events import CalibrationDone
+from fovea.events import CalibrationDone, TrackingState, TrackingStatus
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
+from fovea.webcam.capture import CaptureClosed
 from fovea.webcam.engine import GazeOutput, GazeSettings, WizardState
 from fovea.webcam.event_source import WebcamEventSource
+from tests.synth import synthetic_landmarks
+from tests.test_capture import SAFETY_TIMEOUT_S, GatedCamera
 
 
 class FakeCamera:
@@ -202,3 +208,114 @@ def test_completed_calibration_emits_report(monkeypatch, tmp_path) -> None:
     assert reports[0].n_points == 5
     assert reports[0].coverage == 0.8
     assert reports[0].loo_error == 0.07
+
+
+def _thread(target: Callable[[], object]) -> threading.Thread:
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    return thread
+
+
+def _capture_thread_alive() -> bool:
+    return any(thread.name == "fovea-capture" for thread in threading.enumerate())
+
+
+class FaceEstimator:
+    def __init__(self, **_kwargs) -> None:
+        return None
+
+    def process(self, _frame):
+        return type("Obs", (), {"landmarks": synthetic_landmarks(), "blendshapes": {}})()
+
+    def close(self) -> None:
+        return None
+
+
+def test_events_leave_no_capture_session_or_thread_behind(monkeypatch, tmp_path) -> None:
+    FakeCamera.instances.clear()
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", FakeCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "c.json")),
+        max_frames=2,
+        show_calibration=False,
+    )
+    list(source.events())
+    assert source._session is None
+    assert not _capture_thread_alive()
+
+
+def test_external_close_synthesizes_no_lost(monkeypatch, tmp_path) -> None:
+    camera = GatedCamera([np.zeros((480, 640, 3), dtype=np.uint8), None])
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", lambda *_args, **_kwargs: camera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FaceEstimator)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        show_calibration=False,
+    )
+    events: list[object] = []
+    first_frame_seen = threading.Event()
+
+    def consume() -> None:
+        for event in source.events():
+            events.append(event)
+            if isinstance(event, TrackingState):
+                first_frame_seen.set()
+
+    worker = _thread(consume)
+    camera.release()
+    assert first_frame_seen.wait(SAFETY_TIMEOUT_S)
+    camera.wait_until_blocked(2)  # the producer is blocked in the second read
+    session = source._session
+    assert session is not None
+
+    closer = _thread(source.close)
+    with pytest.raises(CaptureClosed):
+        session.next_frame()  # wakes once close() has stopped the hand-off
+    camera.release()  # the blocked read now returns None, after the close
+    closer.join(SAFETY_TIMEOUT_S)
+    worker.join(SAFETY_TIMEOUT_S)
+    assert not closer.is_alive()
+    assert not worker.is_alive()
+
+    tracking = [event for event in events if isinstance(event, TrackingState)]
+    assert len(tracking) == 1
+    assert tracking[0].status is not TrackingStatus.LOST
+    assert camera.reads == 2
+    assert camera.disconnect_calls == 1
+    assert not camera.disconnected_during_read
+    assert not _capture_thread_alive()
+
+
+def test_concurrent_close_releases_the_camera_once_and_never_during_a_read(
+    monkeypatch, tmp_path
+) -> None:
+    camera = GatedCamera()
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", lambda *_args, **_kwargs: camera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "missing.json")),
+        show_calibration=False,
+    )
+    worker = _thread(lambda: list(source.events()))
+    camera.wait_until_blocked(1)
+    session = source._session
+    assert session is not None
+
+    closers = [_thread(source.close) for _ in range(2)]
+    with pytest.raises(CaptureClosed):
+        session.next_frame()
+    camera.release()
+    for closer in closers:
+        closer.join(SAFETY_TIMEOUT_S)
+        assert not closer.is_alive()
+    worker.join(SAFETY_TIMEOUT_S)
+    assert not worker.is_alive()
+
+    assert camera.disconnect_calls == 1
+    assert not camera.disconnected_during_read
+    assert source._session is None
+    assert not _capture_thread_alive()

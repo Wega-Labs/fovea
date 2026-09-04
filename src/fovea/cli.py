@@ -116,6 +116,12 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
+    parser.add_argument(
+        "--fps",
+        type=_positive_float,
+        metavar="N",
+        help="process at most N frames per second; extra frames are skipped before inference",
+    )
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument(
         "--diagnostics-retention",
@@ -316,6 +322,7 @@ def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSourc
         backend=args.backend,
         model_path=args.model,
         max_frames=args.max_frames,
+        max_fps=args.fps,
         force_calibrate=(args.command == "calibrate" or bool(getattr(args, "calibrate", False))),
         force_test=args.command == "test",
         show_calibration=not args.no_display,
@@ -412,6 +419,7 @@ def _benchmark_config(args: argparse.Namespace) -> BenchmarkConfig:
         fixation_seconds=args.fixation_seconds,
         yaw_seconds=args.yaw_seconds,
         drift_seconds=args.drift_seconds,
+        max_fps=args.fps,
     )
 
 

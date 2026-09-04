@@ -161,7 +161,7 @@ class ReplayEventSource:
         self._closed = False
         engine = GazeEngine(self.settings, self.project_root)
         self._engine = engine
-        processor = GazeFrameProcessor(engine)
+        processor = GazeFrameProcessor(engine, self.settings)
         if self.force_calibrate:
             engine.start_calibration()
         elif self.force_test:
