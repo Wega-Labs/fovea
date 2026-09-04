@@ -7,7 +7,7 @@ from typing import ClassVar
 import numpy as np
 import pytest
 
-from fovea.events import CalibrationDone, TrackingState, TrackingStatus
+from fovea.events import CalibrationDone, CameraReady, TrackingState, TrackingStatus
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
 from fovea.webcam.capture import CaptureClosed
 from fovea.webcam.engine import GazeOutput, GazeSettings, WizardState
@@ -165,6 +165,31 @@ def test_close_without_starting_is_safe(tmp_path) -> None:
     )
     source.close()
     source.close()
+
+
+def test_camera_ready_is_first_event(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("fovea.webcam.event_source.Webcam", FakeCamera)
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", FakeEstimator)
+    source = WebcamEventSource(
+        GazeSettings(calibration_path=str(tmp_path / "c.json")),
+        max_frames=1,
+        show_calibration=False,
+    )
+    events = list(source.events())
+    assert isinstance(events[0], CameraReady)
+    assert events[0].index == 0
+
+
+def test_camera_selector_defaults_and_conflicts(tmp_path) -> None:
+    settings = GazeSettings(calibration_path=str(tmp_path / "c.json"))
+    source = WebcamEventSource(settings)
+    assert source.device_index == 0
+    assert source._camera_selector().index == 0
+    identified = WebcamEventSource(settings, camera_id="stable-id")
+    assert identified.device_index is None
+    assert identified._camera_selector().unique_id == "stable-id"
+    with pytest.raises(ValueError, match="only one"):
+        WebcamEventSource(settings, device_index=0, camera_id="stable-id")
 
 
 def test_calibration_display_closes_when_calibration_finishes(monkeypatch, tmp_path) -> None:

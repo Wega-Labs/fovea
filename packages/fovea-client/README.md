@@ -74,6 +74,18 @@ from every application shutdown path.
 
 ## Reconnect
 
+The client's top-level `reconnect` option restarts the entire Fovea child process after it exits.
+Fovea's `--reconnect` CLI flag instead keeps one process alive while it waits for a successfully
+opened camera to return. Pass camera name/id selection and camera-level reconnect through `args`:
+
+```ts
+const fovea = spawnFovea({
+  args: ["--camera-id", "stable-id-from-doctor", "--reconnect"],
+});
+```
+
+Use the process-level option when the host should recover from any child-process camera exit:
+
 ```ts
 const fovea = spawnFovea({
   reconnect: {

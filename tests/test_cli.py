@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import signal
+import sys
+import threading
 import time
 from collections.abc import Iterator
 from dataclasses import asdict
@@ -18,6 +22,8 @@ from fovea.events import (
     CalibrationDone,
     CalibrationUpdated,
     CalibrationWarning,
+    CameraLost,
+    CameraReady,
     Diagnostics,
     DoubleBlink,
     Dwell,
@@ -42,7 +48,7 @@ from fovea.events import (
 from fovea.protocol import hello_json
 from fovea.serialize import event_type_name, to_json
 from fovea.webcam.calibration import CalibrationTarget
-from fovea.webcam.camera import CameraError
+from fovea.webcam.camera import CameraEnumerationUnavailable, CameraError, CameraInfo
 from fovea.webcam.engine import GazeSettings
 from fovea.webcam.landmarks import MediaPipeUnavailableError
 from fovea.webcam.targeting import TargetRect
@@ -61,6 +67,8 @@ def _all_event_types() -> list[FoveaEvent]:
         Wink(Eye.LEFT, 180.0, 0.8, 17),
         DoubleBlink(18),
         LongBlink(700.0, 19),
+        CameraReady("Integrated Camera", "camera-id", 0, 640, 480, 30.0, 20),
+        CameraLost("Integrated Camera", "camera-id", 0, "read_failed", True, 21),
         Gesture("pinch", GesturePhase.STARTED, 0.9, 8),
         Manipulation("card-1", GesturePhase.UPDATED, 1.0, 2.0, 1.1, 5.0, 0.8, 9),
         TrackingState(TrackingStatus.UNCERTAIN, 0.5, 10, "Move closer"),
@@ -204,6 +212,52 @@ def test_fps_defaults_to_processing_every_frame(monkeypatch, capsys) -> None:
     assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
+def test_camera_selector_capture_fps_and_reconnect_reach_source(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    args = [
+        "run",
+        "--ndjson",
+        "--camera-id",
+        "stable-id",
+        "--capture-fps",
+        "24",
+        "--reconnect",
+    ]
+    assert main(args, source_factory=factory) == 0
+    assert received["device_index"] is None
+    assert received["camera_name"] is None
+    assert received["camera_id"] == "stable-id"
+    assert received["capture_fps"] == 24.0
+    assert received["reconnect"] is True
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+def test_default_camera_selector_is_index_zero(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    assert main(["run", "--ndjson"], source_factory=factory) == 0
+    assert received["device_index"] == 0
+    assert received["camera_name"] is None
+    assert received["camera_id"] is None
+    capsys.readouterr()
+
+
+def test_camera_selector_flags_are_mutually_exclusive(capsys) -> None:
+    assert main(["run", "--ndjson", "--camera", "0", "--camera-id", "id"]) == 2
+    assert json.loads(capsys.readouterr().out)["type"] == "error"
+
+
 def test_zero_fps_exits_two_with_one_json_error(capsys) -> None:
     exit_code = main(["run", "--ndjson", "--fps", "0"])
     lines = capsys.readouterr().out.splitlines()
@@ -276,6 +330,72 @@ def test_quit_on_stdin_closes_source(monkeypatch, capsys) -> None:
     source = SlowSource([])
     assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
     assert source.closed
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+class BlockingSource(FakeSource):
+    def __init__(self) -> None:
+        super().__init__([])
+        self.entered = threading.Event()
+        self.released = threading.Event()
+        self.close_calls = 0
+
+    def events(self) -> Iterator[FoveaEvent]:
+        self.entered.set()
+        self.released.wait(5.0)
+        yield from ()
+
+    def close(self) -> None:
+        self.close_calls += 1
+        self.closed = True
+        self.released.set()
+
+
+class QuitAfterBlocked:
+    def __init__(self, source: BlockingSource, lines: int = 1) -> None:
+        self.source = source
+        self.remaining = lines
+
+    def __iter__(self) -> QuitAfterBlocked:
+        return self
+
+    def __next__(self) -> str:
+        if not self.source.entered.wait(5.0) or self.remaining == 0:
+            raise StopIteration
+        self.remaining -= 1
+        return "quit\n"
+
+
+def test_stdin_quit_unblocks_a_blocking_source(monkeypatch, capsys) -> None:
+    source = BlockingSource()
+    monkeypatch.setattr("sys.stdin", QuitAfterBlocked(source))
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    assert source.released.is_set()
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
+
+
+def test_repeated_quit_launches_only_one_async_close(monkeypatch, capsys) -> None:
+    source = BlockingSource()
+    monkeypatch.setattr("sys.stdin", QuitAfterBlocked(source, lines=3))
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    assert source.close_calls == 2  # one edge-triggered closer plus main's final cleanup
+    capsys.readouterr()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signal semantics")
+def test_sigint_unblocks_a_blocking_source(monkeypatch, capsys) -> None:
+    source = BlockingSource()
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+
+    def interrupt() -> None:
+        assert source.entered.wait(5.0)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    killer = threading.Thread(target=interrupt, daemon=True)
+    killer.start()
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    killer.join(5.0)
+    assert not killer.is_alive()
     assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
@@ -560,3 +680,26 @@ def test_doctor_reports_versions_model_and_camera(monkeypatch, capsys) -> None:
     assert "model_status=verified" in output
     assert "camera_count=2" in output
     assert "camera_authorization=authorized" in output
+
+
+def test_doctor_cameras_prints_json(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        "fovea.cli.enumerate_cameras",
+        lambda: (CameraInfo(0, "Integrated", "stable-id", True),),
+    )
+    assert main(["doctor", "--cameras"]) == 0
+    assert json.loads(capsys.readouterr().out) == [
+        {"index": 0, "name": "Integrated", "unique_id": "stable-id", "default": True}
+    ]
+
+
+def test_doctor_cameras_unavailable_exits_three(monkeypatch, capsys) -> None:
+    def unavailable() -> tuple[CameraInfo, ...]:
+        raise CameraEnumerationUnavailable("not supported")
+
+    monkeypatch.setattr("fovea.cli.enumerate_cameras", unavailable)
+    assert main(["doctor", "--cameras"]) == 3
+    assert json.loads(capsys.readouterr().out) == {
+        "type": "error",
+        "message": "not supported",
+    }

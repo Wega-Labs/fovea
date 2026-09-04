@@ -109,6 +109,7 @@ class CalibrationIdentity:
     camera_index: int
     frame_width: int
     frame_height: int
+    camera_id: str | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -132,6 +133,7 @@ class CalibrationIdentity:
                 "height": self.display_height,
             },
             "camera_index": self.camera_index,
+            "camera_id": self.camera_id,
             "frame": {"w": self.frame_width, "h": self.frame_height},
         }
 
@@ -140,10 +142,13 @@ class CalibrationIdentity:
         display = data.get("display")
         frame = data.get("frame")
         camera_index = data.get("camera_index")
+        camera_id = data.get("camera_id")
         if not isinstance(display, dict) or not isinstance(frame, dict):
             return None
         display_id = display.get("id")
         if display_id is not None and not isinstance(display_id, str):
+            return None
+        if camera_id is not None and not isinstance(camera_id, str):
             return None
         display_width = display.get("width")
         display_height = display.get("height")
@@ -170,24 +175,32 @@ class CalibrationIdentity:
                 camera_index=camera_index,
                 frame_width=frame_width,
                 frame_height=frame_height,
+                camera_id=camera_id,
             )
         except ValueError:
             return None
 
     def matches(self, expected: CalibrationIdentity) -> bool:
         id_matches = expected.display_id is None or self.display_id == expected.display_id
-        return id_matches and (
-            self.display_width,
-            self.display_height,
-            self.camera_index,
-            self.frame_width,
-            self.frame_height,
-        ) == (
-            expected.display_width,
-            expected.display_height,
-            expected.camera_index,
-            expected.frame_width,
-            expected.frame_height,
+        if self.camera_id is not None:
+            camera_matches = expected.camera_id is not None and self.camera_id == expected.camera_id
+        else:
+            camera_matches = self.camera_index == expected.camera_index
+        return (
+            id_matches
+            and (
+                self.display_width,
+                self.display_height,
+                self.frame_width,
+                self.frame_height,
+            )
+            == (
+                expected.display_width,
+                expected.display_height,
+                expected.frame_width,
+                expected.frame_height,
+            )
+            and camera_matches
         )
 
 

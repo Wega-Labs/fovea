@@ -4,7 +4,7 @@ Fovea writes UTF-8 NDJSON to stdout. A successful stream starts with one `hello`
 object and then emits one event per line. Hosts send control messages as one JSON
 object per line on stdin. Logs belong on stderr.
 
-The current protocol version is `1.3`. The `1.x` line uses `display_normalized`
+The current protocol version is `1.5`. The `1.x` line uses `display_normalized`
 coordinates: `(0, 0)` is the display's top-left and `(1, 1)` is its bottom-right.
 Hosts must display a visible camera-use indicator whenever capture is active, as
 declared by `indicator_required` in the handshake.
@@ -22,7 +22,7 @@ are backward-compatible protocol-minor changes. Consumers must ignore unknown
 object fields and event types. Removing a field, changing its meaning or type, or
 changing the coordinate space requires a new protocol major version.
 
-Hosts written for protocol `1.0` remain compatible with `1.3`: every `1.0` field
+Hosts written for protocol `1.0` remain compatible with `1.5`: every `1.0` field
 keeps its meaning and type, the relative order of existing events within a frame
 is unchanged, and new commands, event types, and optional fields are ignored by
 contract. Clients should compare only the major component of `hello.protocol`.
@@ -39,6 +39,8 @@ timestamps are nanoseconds; ordering follows the NDJSON stream.
 
 ## Version history
 
+- `1.5` — the `camera_lost` event and camera reconnect lifecycle.
+- `1.4` — stable camera enumeration and selection plus the `camera_ready` event.
 - `1.3` — the `observe` control, `calibration_updated` event, and
   `online_calibration` capability for bounded online self-calibration.
 - `1.2` — optional capture-to-emit latency on `gaze_point`, rolling latency
@@ -154,6 +156,40 @@ Fovea never queues more than one captured frame: a slow consumer always receives
 newest frame. The CLI `--fps N` option caps the processing rate by skipping camera
 frames before inference; skipped frames are not counted as dropped. `timestamp_ns`
 is unchanged: it remains the wall-clock time at capture.
+
+## Camera lifecycle
+
+For a live source that opened successfully, `camera_ready` is the first event after
+`hello`. It reports the selected camera's name, stable `unique_id` when the platform
+provides one, backend index, negotiated width and height, and negotiated fps (`null`
+when the backend does not report a positive finite value). Replay sources never emit
+camera lifecycle events.
+
+After reads have failed continuously for the configured grace period, Fovea emits one
+`camera_lost` with `reason: "read_failed"`. A backend read exception first emits the
+frame processor's `tracking_state: "lost"` events, then immediately emits one
+`camera_lost` with `reason: "read_error"`; target dwell cannot bridge the outage. With
+camera reconnect enabled, `reconnecting` is `true`, exponential backoff begins, and a
+successful recovery emits a new `camera_ready` before frame events resume. Without it,
+the process exits with camera error code 3 after emitting `camera_lost`.
+
+Reconnect only recovers a camera that was opened successfully. An initial open failure
+still exits with code 3 so bad selection, denied permission, and absence fail fast. If
+the first open supplied a stable id, recovery accepts only that same id; otherwise it
+uses the original backend index. The `camera_lifecycle` capability declares vocabulary
+support, not a promise that every event source emits these events.
+
+Lifecycle order is therefore: frame events, `tracking_state: "lost"` when available,
+one `camera_lost`, then `camera_ready` on recovery. A backend read that never returns can
+still block capture shutdown because no backend read timeout is imposed in protocol 1.5.
+
+Camera identity enumeration currently has this support matrix:
+
+| Platform | Numeric `--camera N` | `--camera-name` / `--camera-id` |
+| --- | --- | --- |
+| macOS (AVFoundation) | Yes | Yes; install `fovea-input[macos]` |
+| Linux (V4L2) | Yes | Yes |
+| Windows (Media Foundation) | Yes | Not yet; use `--camera N` |
 
 ## Controls
 
