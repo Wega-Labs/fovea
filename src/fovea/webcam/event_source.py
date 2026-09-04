@@ -31,6 +31,7 @@ from fovea.webcam.calibration import (
 from fovea.webcam.calibration_view import CalibrationDisplay
 from fovea.webcam.camera import Webcam
 from fovea.webcam.engine import GazeEngine, GazeOutput, GazeSettings
+from fovea.webcam.frame_processor import drain_online_events
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
 from fovea.webcam.targeting import TargetMatch, TargetRect, TargetTracker, validate_targets
 from fovea.webcam.temporal import BlinkDetector, FixationDetector
@@ -224,6 +225,7 @@ class WebcamEventSource:
                 frame = camera.read()
                 timestamp_ns = time.time_ns()
                 if frame is None:
+                    engine.process(None, 0.0, 0.0, dt, fps, timestamp_ns=timestamp_ns)
                     blink_detector.reset()
                     fixation_detector.reset()
                     target_tracker.freeze(timestamp_ns)
@@ -250,8 +252,16 @@ class WebcamEventSource:
                 landmarks = None if observation is None else observation.landmarks
                 blendshapes = None if observation is None else observation.blendshapes
                 output = engine.process(
-                    landmarks, float(w), float(h), dt, fps, blendshapes=blendshapes
+                    landmarks,
+                    float(w),
+                    float(h),
+                    dt,
+                    fps,
+                    blendshapes=blendshapes,
+                    timestamp_ns=timestamp_ns,
                 )
+
+                yield from drain_online_events(engine)
 
                 wizard = engine.wizard
                 if wizard is not None and not wizard.done:
@@ -404,6 +414,17 @@ class WebcamEventSource:
         self._pending_events.extend(
             self._target_tracker.replace_targets(self._targets, time.time_ns())
         )
+
+    def observe(
+        self,
+        x: float,
+        y: float,
+        weight: float = 1.0,
+        timestamp_ns: int | None = None,
+    ) -> None:
+        """Forward a host-confirmed observation to the active engine."""
+        if self._engine is not None:
+            self._engine.observe(x, y, weight, timestamp_ns)
 
     def _show_wizard(self) -> None:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:

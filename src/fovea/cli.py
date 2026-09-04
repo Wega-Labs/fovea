@@ -25,6 +25,7 @@ from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expire
 from fovea.protocol import (
     CalibrateCommand,
     Command,
+    ObserveCommand,
     ProtocolError,
     QuitCommand,
     TargetsCommand,
@@ -110,6 +111,7 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--width", type=_positive_int, default=640, metavar="W")
     parser.add_argument("--height", type=_positive_int, default=480, metavar="H")
     parser.add_argument("--no-display", action="store_true")
+    parser.add_argument("--no-online", action="store_true")
     parser.add_argument("--calibration-path", type=Path, metavar="P")
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
@@ -168,6 +170,7 @@ def _build_parser() -> _JsonArgumentParser:
     replay.add_argument("fixture", type=Path)
     replay.add_argument("--ndjson", action="store_true", required=True)
     replay.add_argument("--max-frames", type=_positive_int, metavar="N")
+    replay.add_argument("--no-online", action="store_true")
 
     doctor = commands.add_parser("doctor", help="print environment and camera diagnostics")
     doctor.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
@@ -237,6 +240,15 @@ def _drain_commands(
                 for target in command.items
             )
             _source_method(source, "set_targets", registered_targets)
+        elif isinstance(command, ObserveCommand):
+            _source_method(
+                source,
+                "observe",
+                command.x,
+                command.y,
+                command.weight,
+                command.timestamp_ns,
+            )
         elif command.cmd == "pause":
             paused = True
         elif command.cmd == "resume":
@@ -288,7 +300,7 @@ def _stream(source: EventSource, backend: str = "mediapipe") -> int:
 
 
 def _settings(args: argparse.Namespace) -> GazeSettings:
-    settings = GazeSettings()
+    settings = GazeSettings(online_calibration=not args.no_online)
     if args.calibration_path is not None:
         settings.calibration_path = args.calibration_path
     return settings
@@ -433,7 +445,10 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
             return 0
         if args.command == "replay":
             with TemporaryDirectory(prefix="fovea-replay-") as directory:
-                settings = GazeSettings(calibration_path=str(Path(directory) / "none.json"))
+                settings = GazeSettings(
+                    calibration_path=str(Path(directory) / "none.json"),
+                    online_calibration=not args.no_online,
+                )
                 source = ReplayEventSource(
                     path=args.fixture,
                     settings=settings,

@@ -200,6 +200,16 @@ class ReplayEventSource:
         if self._engine is not None:
             self._engine.start_gaze_test()
 
+    def observe(
+        self,
+        x: float,
+        y: float,
+        weight: float = 1.0,
+        timestamp_ns: int | None = None,
+    ) -> None:
+        if self._engine is not None:
+            self._engine.observe(x, y, weight, timestamp_ns)
+
     def close(self) -> None:
         self._closed = True
         self._engine = None

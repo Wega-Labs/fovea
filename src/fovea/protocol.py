@@ -14,6 +14,7 @@ from fovea.events import (
     Blink,
     CalibrationCue,
     CalibrationDone,
+    CalibrationUpdated,
     CalibrationWarning,
     Diagnostics,
     Dwell,
@@ -29,7 +30,7 @@ from fovea.events import (
 )
 from fovea.serialize import event_type_name
 
-PROTOCOL_VERSION = "1.0"
+PROTOCOL_VERSION = "1.1"
 COORDINATE_SPACE = "display_normalized"
 
 
@@ -69,6 +70,15 @@ class TargetsCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class ObserveCommand:
+    x: float
+    y: float
+    weight: float = 1.0
+    timestamp_ns: int | None = None
+    cmd: Literal["observe"] = "observe"
+
+
+@dataclass(frozen=True, slots=True)
 class PauseCommand:
     cmd: Literal["pause"] = "pause"
 
@@ -84,7 +94,13 @@ class QuitCommand:
 
 
 type Command = (
-    CalibrateCommand | TestCommand | TargetsCommand | PauseCommand | ResumeCommand | QuitCommand
+    CalibrateCommand
+    | TestCommand
+    | TargetsCommand
+    | ObserveCommand
+    | PauseCommand
+    | ResumeCommand
+    | QuitCommand
 )
 
 EVENT_TYPES = (
@@ -101,6 +117,7 @@ EVENT_TYPES = (
     CalibrationCue,
     CalibrationWarning,
     CalibrationDone,
+    CalibrationUpdated,
     GazeTestDone,
     Diagnostics,
 )
@@ -108,6 +125,7 @@ COMMAND_TYPES = (
     CalibrateCommand,
     TestCommand,
     TargetsCommand,
+    ObserveCommand,
     PauseCommand,
     ResumeCommand,
     QuitCommand,
@@ -135,6 +153,7 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
             "windowed_calibration",
             "target_aware",
             "gaze_test_report",
+            "online_calibration",
         ],
     }
 
@@ -181,6 +200,27 @@ def parse_command_line(line: str) -> Command:
             raise ProtocolError("targets control requires only cmd, items, and space fields")
         return _parse_targets_command(payload)
 
+    if name == "observe":
+        if payload is None:
+            raise ProtocolError("observe control requires JSON x and y fields")
+        allowed = {"cmd", "x", "y", "weight", "timestamp_ns"}
+        if set(payload) - allowed or not {"cmd", "x", "y"} <= set(payload):
+            raise ProtocolError("observe control requires only cmd, x, y, weight, and timestamp_ns")
+        x = _parse_normalized_number(payload["x"], "observe x")
+        y = _parse_normalized_number(payload["y"], "observe y")
+        weight_raw = payload.get("weight", 1.0)
+        if not isinstance(weight_raw, int | float) or isinstance(weight_raw, bool):
+            raise ProtocolError("observe weight must be a number")
+        weight = float(weight_raw)
+        if not math.isfinite(weight) or not 0.0 < weight <= 1.0:
+            raise ProtocolError("observe weight must be finite and within (0, 1]")
+        timestamp_raw = payload.get("timestamp_ns")
+        if timestamp_raw is not None and (
+            not isinstance(timestamp_raw, int) or isinstance(timestamp_raw, bool)
+        ):
+            raise ProtocolError("observe timestamp_ns must be an integer or null")
+        return ObserveCommand(x=x, y=y, weight=weight, timestamp_ns=timestamp_raw)
+
     if payload is not None and set(payload) != {"cmd"}:
         raise ProtocolError("control JSON contains unsupported fields")
     for command_type in (PauseCommand, ResumeCommand, QuitCommand):
@@ -188,6 +228,15 @@ def parse_command_line(line: str) -> Command:
         if command.cmd == name:
             return command
     raise ProtocolError(f"unknown control command: {name}")
+
+
+def _parse_normalized_number(value: object, name: str) -> float:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise ProtocolError(f"{name} must be a number")
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0.0 <= parsed <= 1.0:
+        raise ProtocolError(f"{name} must be finite and within [0, 1]")
+    return parsed
 
 
 def _parse_calibration_targets(value: object) -> tuple[CalibrationTargetSpec, ...] | None:

@@ -7,7 +7,7 @@ const option = (name, fallback = "") =>
 const scenario = option("scenario", "normal");
 const hello = JSON.stringify({
   type: "hello",
-  protocol: "1.0",
+  protocol: "1.1",
   fovea: "test",
   backend: "fake",
   coordinate_space: "display_normalized",
@@ -97,6 +97,10 @@ input.on("line", (line) => {
         timestamp_ns: 4,
       });
     }, 5);
+  } else if (command.cmd === "observe") {
+    const marker = option("marker");
+    if (marker !== "") writeFileSync(marker, JSON.stringify(command));
+    send({ type: "calibration_updated", n: 5, loo_error: 0.04, timestamp_ns: 5 });
   } else if (command.cmd === "quit") {
     process.exit(0);
   }

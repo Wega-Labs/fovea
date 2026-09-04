@@ -8,6 +8,7 @@ from typing import Any
 from fovea.events import (
     Blink,
     CalibrationCue,
+    CalibrationUpdated,
     Eye,
     FoveaEvent,
     GazePoint,
@@ -24,6 +25,21 @@ def _tracking_status(label: str) -> TrackingStatus:
     if label in {"FAIR", "POOR"}:
         return TrackingStatus.UNCERTAIN
     return TrackingStatus.LOST
+
+
+def drain_online_events(engine: GazeEngine) -> tuple[CalibrationUpdated, ...]:
+    """Convert every queued refit report without replacing its own timestamp."""
+    drain = getattr(engine, "drain_online_reports", None)
+    if not callable(drain):
+        return ()
+    return tuple(
+        CalibrationUpdated(
+            n=report.n,
+            loo_error=report.loo_error,
+            timestamp_ns=report.refit_ts,
+        )
+        for report in drain()
+    )
 
 
 class GazeFrameProcessor:
@@ -50,8 +66,10 @@ class GazeFrameProcessor:
             dt,
             fps,
             blendshapes=blendshapes,
+            timestamp_ns=timestamp_ns,
         )
         events: list[FoveaEvent] = []
+        events.extend(drain_online_events(self.engine))
 
         wizard = self.engine.wizard
         if wizard is not None and not wizard.done:
