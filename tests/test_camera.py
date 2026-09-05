@@ -195,3 +195,49 @@ def test_webcam_wraps_open_and_read_cv2_errors(monkeypatch) -> None:
     capture.read_error = True
     with pytest.raises(CameraError, match="read"):
         webcam.read()
+
+
+def test_webcam_reconnect_follows_stable_id_across_index_reassignment(monkeypatch) -> None:
+    cameras: list[CameraInfo] = [CameraInfo(1, "Desk Camera", "desk", False)]
+    opened: list[int] = []
+
+    def open_capture(index: int, _api: int) -> FakeCapture:
+        opened.append(index)
+        return FakeCapture()
+
+    monkeypatch.setattr(cv2, "VideoCapture", open_capture)
+    webcam = Webcam(1, 640, 480, False, enumerator=lambda: tuple(cameras))
+    assert webcam.identity == CameraSelector(index=1)
+
+    assert webcam.connect().unique_id == "desk"
+    assert webcam.identity == CameraSelector(unique_id="desk")
+    webcam.disconnect()
+
+    cameras[:] = [CameraInfo(1, "Other Camera", "other", False)]
+    with pytest.raises(CameraError, match="camera id 'desk' matched no cameras"):
+        webcam.connect()
+
+    cameras[:] = [
+        CameraInfo(1, "Other Camera", "other", False),
+        CameraInfo(3, "Desk Camera", "desk", False),
+    ]
+    actuals = webcam.connect()
+    assert (actuals.index, actuals.unique_id) == (3, "desk")
+    assert webcam.device_index == 3
+    assert opened == [1, 3]
+
+
+def test_webcam_keeps_numeric_selection_without_a_stable_id(monkeypatch) -> None:
+    opened: list[int] = []
+
+    def open_capture(index: int, _api: int) -> FakeCapture:
+        opened.append(index)
+        return FakeCapture()
+
+    monkeypatch.setattr(cv2, "VideoCapture", open_capture)
+    webcam = Webcam(2, 640, 480, False, enumerator=lambda: (CameraInfo(2, "Cam", None, False),))
+    webcam.connect()
+    webcam.disconnect()
+    webcam.connect()
+    assert webcam.identity == CameraSelector(index=2)
+    assert opened == [2, 2]

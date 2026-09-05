@@ -23,7 +23,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Stable camera enumeration and selection (protocol `1.4`) on macOS and Linux, negotiated
   `CameraReady` identity/geometry events, `doctor --cameras`, and `--capture-fps`.
 - Camera lifecycle recovery (protocol `1.5`): `CameraLost`, same-device exponential-backoff
-  `--reconnect`, and interruptible shutdown while waiting to reopen.
+  `--reconnect` that follows a stable camera id across backend index reassignment, and
+  interruptible shutdown while opening or waiting to reopen.
 
 ### Changed
 

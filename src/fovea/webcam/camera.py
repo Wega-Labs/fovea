@@ -310,17 +310,29 @@ class Webcam:
         self.fps = fps
         self._enumerator = enumerator
         self._capture: Any = None
+        self._identity: CameraSelector | None = None
+
+    @property
+    def identity(self) -> CameraSelector:
+        """The selector later ``connect()`` calls resolve.
+
+        Once an open has resolved a camera with a stable id, that id replaces a
+        numeric or name selector so reconnecting follows the same device even when
+        the platform reassigns backend indices while it was unplugged.
+        """
+        return self.selector if self._identity is None else self._identity
 
     def connect(self) -> CameraActuals:
         import cv2
 
+        selector = self.identity
         cameras: tuple[CameraInfo, ...] = ()
         try:
             cameras = self._enumerator()
         except CameraEnumerationUnavailable:
-            if self.selector.index is None:
+            if selector.index is None:
                 raise
-        index, info = resolve_camera(self.selector, cameras)
+        index, info = resolve_camera(selector, cameras)
         capture: Any = None
         try:
             capture = cv2.VideoCapture(index, _capture_api(cv2))
@@ -359,6 +371,8 @@ class Webcam:
         )
         self.device_index = index
         self._capture = capture
+        if info is not None and info.unique_id is not None:
+            self._identity = CameraSelector(unique_id=info.unique_id)
         return actuals
 
     @staticmethod

@@ -130,7 +130,8 @@ class WebcamEventSource:
 
         try:
             actuals = self._connect_camera(camera)
-            self._camera_connected = True
+            if not self._adopt_camera(camera):
+                return
             first_actuals = actuals
             self.reconnect_policy.reconnected()
             engine, processor = self._build_pipeline(actuals)
@@ -140,9 +141,9 @@ class WebcamEventSource:
             )
             self._estimator = estimator
             # Capture starts last so neither model load nor display setup counts as dropped frames.
-            session = CaptureSession(camera, max_fps=self.max_fps)
-            self._session = session
-            session.start()
+            session = self._start_session(camera)
+            if session is None:
+                return
             yield self._camera_ready(actuals)
 
             t0 = time.perf_counter()
@@ -376,7 +377,8 @@ class WebcamEventSource:
                 actuals = self._connect_camera(camera)
             except CameraError:
                 continue
-            self._camera_connected = True
+            if not self._adopt_camera(camera):
+                return None
             if not self._same_camera(expected, actuals):
                 _LOG.debug(
                     "ignoring different camera during reconnect: expected id=%r index=%s, "
@@ -386,20 +388,46 @@ class WebcamEventSource:
                     actuals.unique_id,
                     actuals.index,
                 )
-                camera.disconnect()
-                self._camera_connected = False
+                self._release_camera(camera)
                 continue
-            with self._close_lock:
-                if self._closed:
-                    camera.disconnect()
-                    self._camera_connected = False
-                    return None
-                reopened = CaptureSession(camera, max_fps=self.max_fps)
-                self._session = reopened
-                reopened.start()
+            reopened = self._start_session(camera)
+            if reopened is None:
+                return None
             self.reconnect_policy.reconnected()
             return reopened, actuals
         return None
+
+    def _adopt_camera(self, camera: Webcam) -> bool:
+        """Take ownership of a camera that just opened, unless shutdown won the race.
+
+        ``connect()`` runs outside ``_close_lock`` so ``close()`` never waits on a
+        slow open. Ownership therefore transfers under the lock: a ``close()`` that
+        ran during the open saw nothing to release, so the opener releases the
+        device itself and reports that the stream must end.
+        """
+        with self._close_lock:
+            if self._closed:
+                camera.disconnect()
+                return False
+            self._camera_connected = True
+            return True
+
+    def _release_camera(self, camera: Webcam) -> None:
+        """Release an owned camera exactly once, racing ``close()`` safely."""
+        with self._close_lock:
+            if self._camera_connected:
+                camera.disconnect()
+                self._camera_connected = False
+
+    def _start_session(self, camera: Webcam) -> CaptureSession | None:
+        """Start capture on an owned camera, or ``None`` once shutdown has begun."""
+        with self._close_lock:
+            if self._closed:
+                return None
+            session = CaptureSession(camera, max_fps=self.max_fps)
+            self._session = session
+            session.start()
+            return session
 
     def _close_display(self) -> None:
         display = self._display

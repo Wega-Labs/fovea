@@ -175,8 +175,12 @@ the process exits with camera error code 3 after emitting `camera_lost`.
 
 Reconnect only recovers a camera that was opened successfully. An initial open failure
 still exits with code 3 so bad selection, denied permission, and absence fail fast. If
-the first open supplied a stable id, recovery accepts only that same id; otherwise it
-uses the original backend index. The `camera_lifecycle` capability declares vocabulary
+the first open resolved a stable id, whether it was selected by id, by name, or by
+numeric index, recovery re-resolves that id and accepts only that same device, so it is
+found again even when the platform reassigned its backend index while it was unplugged.
+Only a camera without a stable id is recovered by its original backend index. Shutdown
+requested while an open is in flight releases the camera as soon as the open returns,
+without emitting `camera_ready`. The `camera_lifecycle` capability declares vocabulary
 support, not a promise that every event source emits these events.
 
 Lifecycle order is therefore: frame events, `tracking_state: "lost"` when available,

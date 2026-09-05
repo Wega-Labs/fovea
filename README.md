@@ -337,7 +337,8 @@ longer in wall-clock time and skipped or dropped frames are not counted.
 
 Live streams emit `camera_ready` with negotiated geometry before their first frame event. If a
 successfully opened camera is lost, `--reconnect` keeps the process alive and retries with capped
-exponential backoff until the same stable camera returns; recovery emits another `camera_ready`.
+exponential backoff until the same stable camera returns, even at a different index; recovery
+emits another `camera_ready`.
 Startup open failures still exit 3, and without `--reconnect` a lost camera emits `camera_lost`
 and exits 3. A backend read that never returns can still delay shutdown because this release does
 not impose an OpenCV read timeout.
