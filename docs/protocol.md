@@ -187,8 +187,11 @@ v4 calibration:
 defaults to `1.0`, and must be within `(0, 1]`. `timestamp_ns` is optional; when
 present, Fovea associates the observation with the nearest eligible gaze feature
 within 200 ms. Without it, Fovea uses the most recent eligible feature within the
-same 200 ms frame-time window. Stale, blinking, lost-tracking, calibration-wizard,
-disabled, and pre-v4 observations are ignored.
+same 200 ms frame-time window. Blinking frames never enter the eligible feature
+history; an observation near a blink may still match a nearby non-blinking frame
+within that window. Observations with no eligible frame, or made during lost
+tracking or the calibration wizard, while disabled, or with a pre-v4 model are
+ignored.
 
 After a quarantined drift group passes the transaction guards and is installed,
 Fovea emits one event per successful refit. `n` is the cumulative count of trusted
