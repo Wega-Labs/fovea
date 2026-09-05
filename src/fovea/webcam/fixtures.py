@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fovea.events import FoveaEvent
-from fovea.webcam.camera import Webcam
+from fovea.webcam.camera import CameraSelector, Webcam
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.frame_processor import GazeFrameProcessor
 from fovea.webcam.landmarks import FaceLandmarkEstimator, resolve_model_path
@@ -91,7 +91,7 @@ def record_landmarks(
     path: Path,
     *,
     seconds: float,
-    device_index: int = 0,
+    device_index: int | CameraSelector = 0,
     width: int = 640,
     height: int = 480,
     mirror: bool = True,

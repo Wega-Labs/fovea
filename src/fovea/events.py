@@ -221,6 +221,31 @@ class TrackingState:
 
 
 @dataclass(frozen=True, slots=True)
+class CameraReady:
+    """An opened camera and its negotiated capture properties."""
+
+    name: str
+    unique_id: str | None
+    index: int
+    width: int
+    height: int
+    fps: float | None
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
+class CameraLost:
+    """A camera outage that ends the stream or starts reconnect backoff."""
+
+    name: str
+    unique_id: str | None
+    index: int
+    reason: Literal["read_failed", "read_error"]
+    reconnecting: bool
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
 class CalibrationCue:
     """The calibration target the user should look at right now."""
 
@@ -318,6 +343,8 @@ type FoveaEvent = (
     | Gesture
     | Manipulation
     | TrackingState
+    | CameraReady
+    | CameraLost
     | CalibrationCue
     | CalibrationWarning
     | CalibrationDone

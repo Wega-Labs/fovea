@@ -46,6 +46,12 @@
       "$ref": "#/$defs/tracking_state"
     },
     {
+      "$ref": "#/$defs/camera_ready"
+    },
+    {
+      "$ref": "#/$defs/camera_lost"
+    },
+    {
       "$ref": "#/$defs/calibration_cue"
     },
     {
@@ -526,6 +532,106 @@
         "type",
         "status",
         "confidence",
+        "timestamp_ns"
+      ]
+    },
+    "camera_ready": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "camera_ready"
+        },
+        "name": {
+          "type": "string"
+        },
+        "unique_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index": {
+          "type": "integer"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "fps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "unique_id",
+        "index",
+        "width",
+        "height",
+        "fps",
+        "timestamp_ns"
+      ]
+    },
+    "camera_lost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "camera_lost"
+        },
+        "name": {
+          "type": "string"
+        },
+        "unique_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "index": {
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "read_failed",
+            "read_error"
+          ]
+        },
+        "reconnecting": {
+          "type": "boolean"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "unique_id",
+        "index",
+        "reason",
+        "reconnecting",
         "timestamp_ns"
       ]
     },

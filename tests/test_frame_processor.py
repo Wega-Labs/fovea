@@ -209,10 +209,16 @@ def test_webcam_source_delegates_target_replacement_to_the_processor(
     )
     source.set_targets((TargetRect("button", 0.4, 0.4, 0.2, 0.2),))
     iterator = source.events()
-    first_frame = [next(iterator) for _ in range(4)]
-    assert _names(first_frame) == ["TrackingState", "GazePoint", "TargetEnter", "DwellProgress"]
-    assert isinstance(first_frame[1], GazePoint)
-    assert first_frame[1].target_id == "button"
+    first_frame = [next(iterator) for _ in range(5)]
+    assert _names(first_frame) == [
+        "CameraReady",
+        "TrackingState",
+        "GazePoint",
+        "TargetEnter",
+        "DwellProgress",
+    ]
+    assert isinstance(first_frame[2], GazePoint)
+    assert first_frame[2].target_id == "button"
 
     source.set_targets((TargetRect("button", 0.45, 0.4, 0.2, 0.2),))
     rest = list(iterator)
@@ -238,8 +244,8 @@ def test_webcam_source_keeps_diagnostics_after_tracking_state(
         diagnostics=True,
     )
     events = list(source.events())
-    assert _names(events[:3]) == ["TrackingState", "Diagnostics", "GazePoint"]
-    assert _names(events[3:]) == ["TrackingState", "GazePoint"]
+    assert _names(events[:4]) == ["CameraReady", "TrackingState", "Diagnostics", "GazePoint"]
+    assert _names(events[4:]) == ["TrackingState", "GazePoint"]
     assert all(not event.pursuit for event in events if isinstance(event, GazePoint))
 
 
