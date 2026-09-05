@@ -141,6 +141,13 @@ export interface CalibrationDone {
   readonly timestamp_ns: number;
 }
 
+export interface CalibrationUpdated {
+  readonly type: "calibration_updated";
+  readonly n: number;
+  readonly loo_error: number;
+  readonly timestamp_ns: number;
+}
+
 export interface GazeTestDone {
   readonly type: "gaze_test_done";
   readonly n_points: number;
@@ -200,6 +207,14 @@ export interface TargetsCommand {
   readonly space: "display_normalized";
 }
 
+export interface ObserveCommand {
+  readonly cmd: "observe";
+  readonly x: number;
+  readonly y: number;
+  readonly weight?: number;
+  readonly timestamp_ns?: number | null;
+}
+
 export interface PauseCommand {
   readonly cmd: "pause";
 }
@@ -230,6 +245,7 @@ export type FoveaEvent =
   | CalibrationCue
   | CalibrationWarning
   | CalibrationDone
+  | CalibrationUpdated
   | GazeTestDone
   | Diagnostics;
 
@@ -237,6 +253,7 @@ export type FoveaCommand =
   | CalibrateCommand
   | TestCommand
   | TargetsCommand
+  | ObserveCommand
   | PauseCommand
   | ResumeCommand
   | QuitCommand;
@@ -259,6 +276,7 @@ export const FOVEA_EVENT_TYPES = [
   "calibration_cue",
   "calibration_warning",
   "calibration_done",
+  "calibration_updated",
   "gaze_test_done",
   "diagnostics",
 ] as const;
@@ -267,6 +285,7 @@ export const FOVEA_COMMAND_TYPES = [
   "calibrate",
   "test",
   "targets",
+  "observe",
   "pause",
   "resume",
   "quit",

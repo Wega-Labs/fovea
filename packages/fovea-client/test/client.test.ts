@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +62,31 @@ test("is both an EventEmitter and an AsyncIterable", async (context) => {
   assert.equal(iterated.done, false);
   assert.equal(iterated.value?.type, "tracking_state");
   await iterator.return?.();
+});
+
+test("validates and writes online observations", async (context) => {
+  const directory = mkdtempSync(join(tmpdir(), "fovea-client-observe-"));
+  const marker = join(directory, "command.json");
+  const client = spawnFake("observe", { args: [`--marker=${marker}`] });
+  context.after(() => {
+    client.close();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const updated = once(client, "calibration_updated");
+  await client.ready;
+  assert.throws(() => client.observe(-0.1, 0.5), RangeError);
+  assert.throws(() => client.observe(0.5, 0.5, 0), RangeError);
+  client.observe(0.25, 0.75, 0.4, 123);
+  const [event] = await updated;
+
+  assert.equal(event.n, 5);
+  assert.deepEqual(JSON.parse(readFileSync(marker, "utf8")), {
+    cmd: "observe",
+    x: 0.25,
+    y: 0.75,
+    weight: 0.4,
+    timestamp_ns: 123,
+  });
 });
 
 test("reports malformed event lines without losing the process", async (context) => {

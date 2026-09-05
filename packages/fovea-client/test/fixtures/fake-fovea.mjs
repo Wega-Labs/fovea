@@ -98,6 +98,10 @@ input.on("line", (line) => {
         timestamp_ns: 4,
       });
     }, 5);
+  } else if (command.cmd === "observe") {
+    const marker = option("marker");
+    if (marker !== "") writeFileSync(marker, JSON.stringify(command));
+    send({ type: "calibration_updated", n: 5, loo_error: 0.04, timestamp_ns: 5 });
   } else if (command.cmd === "quit") {
     process.exit(0);
   }

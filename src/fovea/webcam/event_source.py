@@ -251,6 +251,17 @@ class WebcamEventSource:
             return
         self._pending_events.extend(processor.replace_targets(self._targets, time.time_ns()))
 
+    def observe(
+        self,
+        x: float,
+        y: float,
+        weight: float = 1.0,
+        timestamp_ns: int | None = None,
+    ) -> None:
+        """Forward a host-confirmed observation to the active engine."""
+        if self._engine is not None:
+            self._engine.observe(x, y, weight, timestamp_ns)
+
     def _show_wizard(self) -> None:
         if not self.show_calibration or self._engine is None or self._engine.wizard is None:
             return

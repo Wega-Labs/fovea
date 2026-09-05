@@ -13,6 +13,7 @@ from fovea.protocol import (
     PROTOCOL_VERSION,
     CalibrateCommand,
     CalibrationTargetSpec,
+    ObserveCommand,
     PauseCommand,
     ProtocolError,
     QuitCommand,
@@ -46,6 +47,7 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
             "windowed_calibration",
             "target_aware",
             "gaze_test_report",
+            "online_calibration",
             "saccade",
             "pursuit",
             "wink",
@@ -57,6 +59,31 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
 
 def test_hello_reports_selected_backend() -> None:
     assert hello_payload("fixture")["backend"] == "fixture"
+
+
+def test_observe_control_is_strict_and_typed() -> None:
+    assert parse_command_line(
+        '{"cmd":"observe","x":0.25,"y":0.75,"weight":0.4,"timestamp_ns":123}'
+    ) == ObserveCommand(0.25, 0.75, 0.4, 123)
+    assert parse_command_line('{"cmd":"observe","x":0,"y":1}') == ObserveCommand(0.0, 1.0)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "observe",
+        '{"cmd":"observe","x":0.5}',
+        '{"cmd":"observe","x":-0.1,"y":0.5}',
+        '{"cmd":"observe","x":0.5,"y":1.1}',
+        '{"cmd":"observe","x":0.5,"y":0.5,"weight":0}',
+        '{"cmd":"observe","x":0.5,"y":0.5,"weight":1.1}',
+        '{"cmd":"observe","x":0.5,"y":0.5,"timestamp_ns":true}',
+        '{"cmd":"observe","x":0.5,"y":0.5,"extra":1}',
+    ],
+)
+def test_invalid_observe_controls_are_rejected(line: str) -> None:
+    with pytest.raises(ProtocolError):
+        parse_command_line(line)
 
 
 @pytest.mark.parametrize(
@@ -162,7 +189,7 @@ def test_committed_schema_matches_dataclasses() -> None:
     definitions = schema["$defs"]
     for event_type in EVENT_TYPES:
         assert event_type_name(event_type) in definitions
-    for command_name in ("calibrate", "test", "targets", "pause", "resume", "quit"):
+    for command_name in ("calibrate", "test", "targets", "observe", "pause", "resume", "quit"):
         assert f"command_{command_name}" in definitions
     gaze_schema = definitions["gaze_point"]
     assert "target_id" in gaze_schema["properties"]
@@ -181,7 +208,7 @@ def test_committed_schema_matches_dataclasses() -> None:
 
 
 def test_protocol_minor_bump_keeps_major_one() -> None:
-    assert PROTOCOL_VERSION == "1.2"
+    assert PROTOCOL_VERSION == "1.3"
     assert PROTOCOL_VERSION.split(".", 1)[0] == "1"
 
 

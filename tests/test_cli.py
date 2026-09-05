@@ -16,6 +16,7 @@ from fovea.events import (
     Blink,
     CalibrationCue,
     CalibrationDone,
+    CalibrationUpdated,
     CalibrationWarning,
     Diagnostics,
     DoubleBlink,
@@ -42,6 +43,7 @@ from fovea.protocol import hello_json
 from fovea.serialize import event_type_name, to_json
 from fovea.webcam.calibration import CalibrationTarget
 from fovea.webcam.camera import CameraError
+from fovea.webcam.engine import GazeSettings
 from fovea.webcam.landmarks import MediaPipeUnavailableError
 from fovea.webcam.targeting import TargetRect
 
@@ -65,15 +67,16 @@ def _all_event_types() -> list[FoveaEvent]:
         CalibrationCue("center", 0.5, 0.5, 0, 10, 3, 28, "Look", 11),
         CalibrationWarning("Target coverage is low", 0.2, 12),
         CalibrationDone(5, 0.76, 0.08, 13),
+        CalibrationUpdated(5, 0.07, 14),
         GazeTestDone(
             1,
             0.04,
             0.04,
             0.04,
             (GazeTestPoint(0.5, 0.5, 0.53, 0.52, 0.04),),
-            14,
+            15,
         ),
-        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 15, 10.0, 20.0, 3),
+        Diagnostics(30.0, 8.0, 0.2, 1.0, -2.0, 16, 10.0, 20.0, 3),
     ]
 
 
@@ -106,6 +109,7 @@ class FakeSource:
         self.calibration_targets: tuple[CalibrationTarget, ...] | None = None
         self.test_targets: tuple[CalibrationTarget, ...] | None = None
         self.targets: tuple[TargetRect, ...] = ()
+        self.observations: list[tuple[float, float, float, int | None]] = []
         FakeSource.instances.append(self)
 
     def events(self) -> Iterator[FoveaEvent]:
@@ -126,6 +130,15 @@ class FakeSource:
 
     def set_targets(self, targets: tuple[TargetRect, ...]) -> None:
         self.targets = targets
+
+    def observe(
+        self,
+        x: float,
+        y: float,
+        weight: float,
+        timestamp_ns: int | None,
+    ) -> None:
+        self.observations.append((x, y, weight, timestamp_ns))
 
 
 def test_fake_source_produces_expected_ndjson(monkeypatch, capsys) -> None:
@@ -282,6 +295,38 @@ def test_stdin_controls_reach_source_between_events(monkeypatch, capsys) -> None
     assert source.calibration_starts == 1
     assert source.test_starts == 1
     assert capsys.readouterr().out.splitlines()[0] == hello_json()
+
+
+def test_observe_control_reaches_source(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        "sys.stdin",
+        io.StringIO('{"cmd":"observe","x":0.2,"y":0.8,"weight":0.5,"timestamp_ns":42}\n'),
+    )
+
+    class SlowSource(FakeSource):
+        def events(self) -> Iterator[FoveaEvent]:
+            time.sleep(0.01)
+            yield GazePoint(0.5, 0.5, 1.0, 1)
+
+    source = SlowSource([])
+    assert main(["run", "--ndjson"], source_factory=lambda **_kwargs: source) == 0
+    assert source.observations == [(0.2, 0.8, 0.5, 42)]
+    assert capsys.readouterr().out.splitlines()[0] == hello_json()
+
+
+def test_no_online_disables_setting(monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    received: dict[str, object] = {}
+
+    def factory(**kwargs: object) -> FakeSource:
+        received.update(kwargs)
+        return FakeSource([])
+
+    assert main(["run", "--ndjson", "--no-online"], source_factory=factory) == 0
+    settings = received["settings"]
+    assert isinstance(settings, GazeSettings)
+    assert settings.online_calibration is False
+    assert capsys.readouterr().out.splitlines() == [hello_json()]
 
 
 def test_custom_calibration_targets_reach_source(monkeypatch, capsys) -> None:

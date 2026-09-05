@@ -255,6 +255,15 @@ class CalibrationDone:
 
 
 @dataclass(frozen=True, slots=True)
+class CalibrationUpdated:
+    """A successful online calibration refit and its health measurement."""
+
+    n: int
+    loo_error: float
+    timestamp_ns: int
+
+
+@dataclass(frozen=True, slots=True)
 class GazeTestPoint:
     """One expected and predicted point from a guided gaze test."""
 
@@ -312,6 +321,7 @@ type FoveaEvent = (
     | CalibrationCue
     | CalibrationWarning
     | CalibrationDone
+    | CalibrationUpdated
     | GazeTestDone
     | Diagnostics
 )

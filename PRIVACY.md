@@ -21,12 +21,18 @@ side effect of starting camera capture.
 An ordinary run persists only the calibration record selected by the user or
 host. That JSON file contains regression coefficients plus the calibration's
 feature names, sample counts and quality labels, display/camera/frame identity,
-and target layout. It contains no image pixels and is not an identity template,
-but it can still reveal device geometry and behavioral characteristics; protect
-it as personal application data.
+and target layout. Schema-v4 records also contain the bounded feature vectors and
+normalized coordinates from the calibration wizard, plus up to 200 trusted feature
+vectors paired with host-confirmed click, tap, or dwell coordinates and weights.
+Starting a new calibration clears the prior online observations before the new
+wizard anchors are written. These records contain no image pixels and are not an
+identity template, but they can still reveal device geometry and behavioral
+characteristics; protect them as personal application data.
 
-Target registration, gaze events, and health diagnostics are not persisted by
-the core engine. The explicit landmark-recording workflow is an exception: it
+Target registration, unconfirmed gaze events, and health diagnostics are not
+persisted by the core engine. Online observations are stored only after the host
+explicitly confirms a coordinate through the `observe` control. The explicit
+landmark-recording workflow is an exception: it
 writes the contributor-selected destination and never includes pixels. Recorded
 landmarks are biometric-adjacent data; contributors must record only themselves,
 provide informed consent, and never include minors or third parties.

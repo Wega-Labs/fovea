@@ -4,7 +4,7 @@ Fovea writes UTF-8 NDJSON to stdout. A successful stream starts with one `hello`
 object and then emits one event per line. Hosts send control messages as one JSON
 object per line on stdin. Logs belong on stderr.
 
-The current protocol version is `1.2`. The `1.x` line uses `display_normalized`
+The current protocol version is `1.3`. The `1.x` line uses `display_normalized`
 coordinates: `(0, 0)` is the display's top-left and `(1, 1)` is its bottom-right.
 Hosts must display a visible camera-use indicator whenever capture is active, as
 declared by `indicator_required` in the handshake.
@@ -22,11 +22,15 @@ are backward-compatible protocol-minor changes. Consumers must ignore unknown
 object fields and event types. Removing a field, changing its meaning or type, or
 changing the coordinate space requires a new protocol major version.
 
-Hosts written for protocol `1.0` remain compatible with `1.2`: every `1.0` field
+Hosts written for protocol `1.0` remain compatible with `1.3`: every `1.0` field
 keeps its meaning and type, the relative order of existing events within a frame
-is unchanged, and the new event types and the optional `gaze_point.pursuit`
-member are ignored by contract. Clients should compare only the major component
-of `hello.protocol`.
+is unchanged, and new commands, event types, and optional fields are ignored by
+contract. Clients should compare only the major component of `hello.protocol`.
+
+The `online_calibration` handshake capability means the protocol understands the
+`observe` control and `calibration_updated` event. Capabilities describe protocol
+support, not runtime state: launching Fovea with `--no-online` still advertises the
+capability but makes observations no-ops.
 
 Nullable `GazePoint.target_id`, `snapped_x`, and `snapped_y` preserve the raw gaze
 coordinate while exposing target-aware intent. `GazeTestDone` carries expected and
@@ -35,6 +39,8 @@ timestamps are nanoseconds; ordering follows the NDJSON stream.
 
 ## Version history
 
+- `1.3` — the `observe` control, `calibration_updated` event, and
+  `online_calibration` capability for bounded online self-calibration.
 - `1.2` — optional capture-to-emit latency on `gaze_point`, rolling latency
   percentiles and dropped-frame counts on `diagnostics`, and latest-frame capture.
 - `1.1` — event vocabulary v2: the `saccade`, `wink`, `double_blink`, and
@@ -55,10 +61,11 @@ replay. Their thresholds live in `GazeSettings` (`saccade_velocity`,
 `natural_blink_window`); the defaults are heuristics validated on synthetic
 streams, not guarantees.
 
-Within one frame, events are ordered `calibration_cue`, `tracking_state`,
-`diagnostics` (when due), `calibration_done`, `gaze_test_done`, `blink`,
-`long_blink` or `double_blink`, `wink`, `saccade`, `gaze_point`, target events,
-then `fixation`.
+Within one frame, events are ordered `calibration_updated`, `calibration_cue`,
+`tracking_state`, `diagnostics` (when due), `calibration_done`, `gaze_test_done`,
+`blink`, `long_blink` or `double_blink`, `wink`, `saccade`, `gaze_point`, target
+events, then `fixation`. `calibration_updated` is present only when a successful
+online refit has been queued since the preceding frame.
 
 ### `saccade`
 
@@ -168,6 +175,34 @@ five or more custom targets:
 ```
 
 Coordinates must be finite and within `[0, 1]`.
+
+Hosts may confirm a click, tap, or dwell-confirmed location to improve an existing
+v4 calibration:
+
+```json
+{"cmd":"observe","x":0.42,"y":0.68,"weight":0.8,"timestamp_ns":1720000000000000000}
+```
+
+`x` and `y` are finite `display_normalized` coordinates. `weight` is optional,
+defaults to `1.0`, and must be within `(0, 1]`. `timestamp_ns` is optional; when
+present, Fovea associates the observation with the nearest eligible gaze feature
+within 200 ms. Without it, Fovea uses the most recent eligible feature within the
+same 200 ms frame-time window. Blinking frames never enter the eligible feature
+history; an observation near a blink may still match a nearby non-blinking frame
+within that window. Observations with no eligible frame, or made during lost
+tracking or the calibration wizard, while disabled, or with a pre-v4 model are
+ignored.
+
+After a quarantined drift group passes the transaction guards and is installed,
+Fovea emits one event per successful refit. `n` is the cumulative count of trusted
+online observations and `loo_error` is a health measurement, not an acceptance gate:
+
+```json
+{"type":"calibration_updated","n":5,"loo_error":0.061,"timestamp_ns":1720000000100000000}
+```
+
+Use `--no-online` on capture commands to disable association, refitting, and online
+state changes for that run.
 
 Target-aware mode uses replace-all registration. Send an empty `items` array to
 disable it, and resend the full set after a layout change (at no more than 10 Hz):

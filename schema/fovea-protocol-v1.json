@@ -55,6 +55,9 @@
       "$ref": "#/$defs/calibration_done"
     },
     {
+      "$ref": "#/$defs/calibration_updated"
+    },
+    {
       "$ref": "#/$defs/gaze_test_done"
     },
     {
@@ -68,6 +71,9 @@
     },
     {
       "$ref": "#/$defs/command_targets"
+    },
+    {
+      "$ref": "#/$defs/command_observe"
     },
     {
       "$ref": "#/$defs/command_pause"
@@ -623,6 +629,30 @@
         "timestamp_ns"
       ]
     },
+    "calibration_updated": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "const": "calibration_updated"
+        },
+        "n": {
+          "type": "integer"
+        },
+        "loo_error": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "n",
+        "loo_error",
+        "timestamp_ns"
+      ]
+    },
     "gaze_test_done": {
       "type": "object",
       "additionalProperties": false,
@@ -878,6 +908,39 @@
         "cmd",
         "items",
         "space"
+      ]
+    },
+    "command_observe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "const": "observe"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "weight": {
+          "type": "number"
+        },
+        "timestamp_ns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "cmd",
+        "x",
+        "y"
       ]
     },
     "command_pause": {

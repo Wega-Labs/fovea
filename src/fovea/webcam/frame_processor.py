@@ -18,6 +18,7 @@ from typing import Any, cast
 from fovea.events import (
     CalibrationCue,
     CalibrationDone,
+    CalibrationUpdated,
     Diagnostics,
     FoveaEvent,
     GazePoint,
@@ -47,6 +48,21 @@ def _tracking_status(label: str) -> TrackingStatus:
     if label in {"FAIR", "POOR"}:
         return TrackingStatus.UNCERTAIN
     return TrackingStatus.LOST
+
+
+def drain_online_events(engine: GazeEngine) -> tuple[CalibrationUpdated, ...]:
+    """Convert every queued refit report without replacing its own timestamp."""
+    drain = getattr(engine, "drain_online_reports", None)
+    if not callable(drain):
+        return ()
+    return tuple(
+        CalibrationUpdated(
+            n=report.n,
+            loo_error=report.loo_error,
+            timestamp_ns=report.refit_ts,
+        )
+        for report in drain()
+    )
 
 
 def _diagnostics_event(
@@ -124,10 +140,10 @@ def _gaze_test_event(report: dict[str, object], timestamp_ns: int) -> GazeTestDo
 class GazeFrameProcessor:
     """Process landmark frames using the same path for webcams and replay.
 
-    Per frame the events are ordered ``CalibrationCue``, ``TrackingState``,
-    ``Diagnostics`` (when due), ``CalibrationDone``, ``GazeTestDone``,
-    ``Blink``, ``LongBlink``/``DoubleBlink``, ``Wink``, ``Saccade``,
-    ``GazePoint``, target events, then ``Fixation``.
+    Per frame the events are ordered ``CalibrationUpdated``, ``CalibrationCue``,
+    ``TrackingState``, ``Diagnostics`` (when due), ``CalibrationDone``,
+    ``GazeTestDone``, ``Blink``, ``LongBlink``/``DoubleBlink``, ``Wink``,
+    ``Saccade``, ``GazePoint``, target events, then ``Fixation``.
 
     Trigger events (wink, long blink, double blink) are silent for any frame
     on which the calibration or gaze-test wizard was active at frame start,
@@ -194,15 +210,17 @@ class GazeFrameProcessor:
         dropped_frames: int = 0,
     ) -> tuple[FoveaEvent, ...]:
         """Events for a capture that produced no frame at all."""
+        self.engine.process(None, 0.0, 0.0, 0.0, fps, timestamp_ns=timestamp_ns)
         self._reset_detectors()
         self._target_tracker.freeze(timestamp_ns)
-        events: list[FoveaEvent] = [
+        events: list[FoveaEvent] = list(drain_online_events(self.engine))
+        events.append(
             TrackingState(
                 status=TrackingStatus.LOST,
                 confidence=0.0,
                 timestamp_ns=timestamp_ns,
             )
-        ]
+        )
         if diagnostics_due:
             events.append(
                 Diagnostics(
@@ -242,8 +260,9 @@ class GazeFrameProcessor:
             dt,
             fps,
             blendshapes=blendshapes,
+            timestamp_ns=timestamp_ns,
         )
-        events: list[FoveaEvent] = []
+        events: list[FoveaEvent] = list(drain_online_events(engine))
         if wizard_active:
             self._trigger_quiet_until_open = True
             self._reset_triggers()

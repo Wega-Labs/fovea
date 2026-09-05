@@ -19,6 +19,7 @@ import type {
   FoveaCommand,
   FoveaEvent,
   GazePoint,
+  ObserveCommand,
   TargetsCommand,
 } from "./generated/protocol.js";
 import type {
@@ -137,6 +138,25 @@ export class FoveaClient extends EventEmitter implements AsyncIterable<FoveaEven
       cmd: "targets",
       items: targets,
       space: "display_normalized",
+    };
+    this.send(command);
+  }
+
+  observe(x: number, y: number, weight = 1, timestampNs?: number): void {
+    validateNormalizedCoordinate(x, "x");
+    validateNormalizedCoordinate(y, "y");
+    if (!Number.isFinite(weight) || weight <= 0 || weight > 1) {
+      throw new RangeError("weight must be finite and within (0, 1]");
+    }
+    if (timestampNs !== undefined && !Number.isInteger(timestampNs)) {
+      throw new RangeError("timestampNs must be an integer");
+    }
+    const command: ObserveCommand = {
+      cmd: "observe",
+      x,
+      y,
+      weight,
+      ...(timestampNs === undefined ? {} : { timestamp_ns: timestampNs }),
     };
     this.send(command);
   }
@@ -625,6 +645,12 @@ function validateTargetRects(targets: ReadonlyArray<TargetRect>): void {
       throw new RangeError("targets need unique IDs and rectangles within [0, 1]");
     }
     ids.add(target.id);
+  }
+}
+
+function validateNormalizedCoordinate(value: number, name: string): void {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new RangeError(`${name} must be finite and within [0, 1]`);
   }
 }
 

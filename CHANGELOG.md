@@ -17,6 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Capture and latency additions (protocol `1.2`): a latest-frame hand-off, capture
   timestamps, `GazePoint.latency_ms`, `Diagnostics` latency percentiles and
   `dropped_frames`, and a `--fps` processing cap.
+- Online self-calibration (protocol `1.3`): the `observe` control,
+  `calibration_updated` event, schema-v4 anchor persistence, robust residual
+  quarantine, guarded weighted refits, and the `--no-online` runtime switch.
 
 ### Changed
 
