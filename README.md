@@ -125,6 +125,8 @@ Blink(eye, duration)
 Gesture(kind, phase, confidence)
 Manipulation(target, delta, phase)
 TrackingState(active | uncertain | lost)
+CameraReady(name, unique_id, index, width, height, fps)
+CameraLost(name, unique_id, index, reason, reconnecting)
 CalibrationCue(label, x, y, index, total, instruction)
 CalibrationWarning(message, coverage) / CalibrationDone(n_points, coverage, loo_error)
 GazeTestDone(n_points, median_error, points)
@@ -240,6 +242,20 @@ uv run fovea run --ndjson --calibrate
 The command opens the local webcam, shows the calibration targets, and writes one compact event
 object per stdout line. Logs and human-readable status stay on stderr.
 
+Choose a camera by backend index, a case-insensitive name substring, or an exact stable id:
+
+```bash
+uv run fovea doctor --cameras
+uv run fovea run --ndjson --camera 0
+uv run fovea run --ndjson --camera-name "integrated"
+uv run fovea run --ndjson --camera-id "stable-id-from-doctor"
+```
+
+These selector flags are mutually exclusive and default to `--camera 0`. Name selection must
+match exactly one camera; use the id from `doctor --cameras` when names are ambiguous. The same
+selectors work with `run`, `calibrate`, `test`, and `record`. `bench --camera-name` remains
+free-text benchmark metadata and `bench --camera` remains its numeric capture selector.
+
 For an in-process Python integration, use the same engine through `WebcamEventSource`:
 
 ```python
@@ -313,10 +329,25 @@ Camera frames are read on a capture thread and handed over through a single slot
 host always receives the newest frame instead of a growing backlog. Each `GazePoint` carries
 `latency_ms`, the milliseconds from capture to the moment the frame's events are ready to emit,
 and `Diagnostics` reports the p50/p95 of that latency plus the cumulative `dropped_frames`
-count. `--fps N` caps the processing rate by skipping camera frames before inference.
+count. `--fps N` caps the processing rate by skipping camera frames before inference, while
+`--capture-fps N` requests a camera capture rate without changing that processing cap.
 `--max-frames N` counts iterations of the processing loop (frames handed to the pipeline plus
 observed read failures), not raw camera reads, so with `--fps` or a slow host the run lasts
 longer in wall-clock time and skipped or dropped frames are not counted.
+
+Live streams emit `camera_ready` with negotiated geometry before their first frame event. If a
+successfully opened camera is lost, `--reconnect` keeps the process alive and retries with capped
+exponential backoff until the same stable camera returns, even at a different index; recovery
+emits another `camera_ready`.
+Startup open failures still exit 3, and without `--reconnect` a lost camera emits `camera_lost`
+and exits 3. A backend read that never returns can still delay shutdown because this release does
+not impose an OpenCV read timeout.
+
+| Platform | `--camera N` | Name/id selection and `doctor --cameras` |
+| --- | --- | --- |
+| macOS | Yes | Yes, with the `macos` extra |
+| Linux | Yes | Yes |
+| Windows | Yes | Not yet; use `--camera N` |
 
 On macOS, camera permission is attributed to the responsible app that launches Fovea. A Python
 child process spawned by a terminal or desktop host uses that host application's camera grant;

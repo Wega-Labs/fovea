@@ -16,6 +16,8 @@ from fovea.events import (
     CalibrationDone,
     CalibrationUpdated,
     CalibrationWarning,
+    CameraLost,
+    CameraReady,
     Diagnostics,
     DoubleBlink,
     Dwell,
@@ -34,7 +36,7 @@ from fovea.events import (
 )
 from fovea.serialize import event_type_name
 
-PROTOCOL_VERSION = "1.3"
+PROTOCOL_VERSION = "1.5"
 COORDINATE_SPACE = "display_normalized"
 
 
@@ -122,6 +124,8 @@ EVENT_TYPES = (
     Gesture,
     Manipulation,
     TrackingState,
+    CameraReady,
+    CameraLost,
     CalibrationCue,
     CalibrationWarning,
     CalibrationDone,
@@ -167,6 +171,7 @@ def hello_payload(backend: str = "mediapipe") -> dict[str, object]:
             "wink",
             "double_blink",
             "long_blink",
+            "camera_lifecycle",
         ],
     }
 
