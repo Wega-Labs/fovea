@@ -9,6 +9,7 @@ import pytest
 
 from fovea.events import CalibrationDone, CameraReady, TrackingState, TrackingStatus
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, CalibrationTarget
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.capture import CaptureClosed
 from fovea.webcam.engine import GazeOutput, GazeSettings, WizardState
 from fovea.webcam.event_source import WebcamEventSource
@@ -24,8 +25,9 @@ class FakeCamera:
         self.disconnect_calls = 0
         FakeCamera.instances.append(self)
 
-    def connect(self) -> None:
+    def connect(self) -> CameraActuals:
         self.connected = True
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def read(self):
         return np.zeros((48, 64, 3), dtype=np.uint8)
@@ -133,7 +135,6 @@ def test_close_releases_webcam(monkeypatch, tmp_path) -> None:
     assert camera.connected is False
     assert FakeEstimator.close_calls == 1
     assert source._camera is None
-    assert source._estimator is None
 
 
 def test_close_is_idempotent(monkeypatch, tmp_path) -> None:

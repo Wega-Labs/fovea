@@ -82,7 +82,6 @@ class WebcamEventSource:
     backend: str = "mediapipe"
     _camera: Webcam | None = field(default=None, init=False, repr=False)
     _camera_connected: bool = field(default=False, init=False, repr=False)
-    _estimator: FaceLandmarkEstimator | None = field(default=None, init=False, repr=False)
     _display: CalibrationDisplay | None = field(default=None, init=False, repr=False)
     _engine: GazeEngine | None = field(default=None, init=False, repr=False)
     _closed: bool = field(default=True, init=False, repr=False)
@@ -127,9 +126,12 @@ class WebcamEventSource:
         )
         self._camera = camera
         frames = 0
+        # The estimator lives and dies on this generator's thread, so ``close()``
+        # from another thread can never destroy the backend during ``process()``.
+        estimator: FaceLandmarkEstimator | None = None
 
         try:
-            actuals = self._connect_camera(camera)
+            actuals = camera.connect()
             if not self._adopt_camera(camera):
                 return
             first_actuals = actuals
@@ -139,7 +141,6 @@ class WebcamEventSource:
                 model_path=resolve_model_path(self.model_path),
                 backend=create_landmark_backend(self.backend),
             )
-            self._estimator = estimator
             # Capture starts last so neither model load nor display setup counts as dropped frames.
             session = self._start_session(camera)
             if session is None:
@@ -273,6 +274,8 @@ class WebcamEventSource:
                 yield from events
                 frames += 1
         finally:
+            if estimator is not None:
+                estimator.close()
             self.close()
 
     def _camera_selector(self) -> CameraSelector:
@@ -282,21 +285,6 @@ class WebcamEventSource:
             return CameraSelector(unique_id=self.camera_id)
         assert self.device_index is not None
         return CameraSelector(index=self.device_index)
-
-    def _connect_camera(self, camera: Webcam) -> CameraActuals:
-        """Open a camera, tolerating pre-1.4 structural test doubles that return None."""
-        actuals: CameraActuals | None = camera.connect()
-        if actuals is not None:
-            return actuals
-        index = self.device_index if self.device_index is not None else 0
-        return CameraActuals(
-            index=index,
-            name=self.camera_name or f"camera {index}",
-            unique_id=self.camera_id,
-            width=self.width,
-            height=self.height,
-            fps=self.capture_fps,
-        )
 
     def _build_pipeline(
         self,
@@ -374,7 +362,7 @@ class WebcamEventSource:
             if self._closing.wait(self.reconnect_policy.next_delay()):
                 return None
             try:
-                actuals = self._connect_camera(camera)
+                actuals = camera.connect()
             except CameraError:
                 continue
             if not self._adopt_camera(camera):
@@ -513,12 +501,17 @@ class WebcamEventSource:
         self._display.show(self._engine.wizard, self._engine.targets)
 
     def close(self) -> None:
-        """Stop capture and landmark inference and release the webcam.
+        """Stop capture and release the webcam.
 
         Safe to call multiple times and from any thread. The capture thread is
         joined before the camera is released, so ``release()`` never runs while
         a ``read()`` is in flight. This is the OpenCV analogue of stopping
         MediaStream tracks: ``VideoCapture.release()`` ends the camera session.
+
+        The landmark estimator is deliberately not touched here: it belongs to
+        the ``events()`` generator, which closes it after the frame loop exits.
+        That keeps backend destruction on the inference thread, so an
+        asynchronous ``close()`` cannot overlap an in-flight ``process()``.
         """
         self._closing.set()
         with self._close_lock:
@@ -530,10 +523,6 @@ class WebcamEventSource:
             self._engine = None
             self._processor = None
             self._close_display()
-            estimator = self._estimator
-            self._estimator = None
-            if estimator is not None:
-                estimator.close()
             camera = self._camera
             self._camera = None
             if camera is not None and self._camera_connected:

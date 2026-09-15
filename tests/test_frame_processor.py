@@ -27,6 +27,7 @@ from fovea.events import (
     Wink,
 )
 from fovea.webcam.calibration import CalibrationIdentity, fit_ridge, save_model
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
 from fovea.webcam.features import LEFT_IRIS_RING
@@ -153,8 +154,8 @@ class _FakeCamera:
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         return None
 
-    def connect(self) -> None:
-        return None
+    def connect(self) -> CameraActuals:
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def read(self) -> np.ndarray:
         return np.zeros((480, 640, 3), dtype=np.uint8)

@@ -196,6 +196,28 @@ class BlockingEstimator(FakeEstimator):
         assert BlockingEstimator.load_may_finish.wait(SAFETY_TIMEOUT_S)
 
 
+class InferringEstimator(FakeEstimator):
+    """Landmark estimator whose ``process()`` blocks until the test lets it finish."""
+
+    process_entered = threading.Event()
+    process_may_finish = threading.Event()
+    in_process = False
+    close_calls = 0
+    closed_during_process = False
+
+    def process(self, _frame: object) -> None:
+        InferringEstimator.in_process = True
+        InferringEstimator.process_entered.set()
+        assert InferringEstimator.process_may_finish.wait(SAFETY_TIMEOUT_S)
+        InferringEstimator.in_process = False
+        return None
+
+    def close(self) -> None:
+        InferringEstimator.close_calls += 1
+        if InferringEstimator.in_process:
+            InferringEstimator.closed_during_process = True
+
+
 def _consume_in_thread(source: WebcamEventSource) -> tuple[threading.Thread, list[FoveaEvent]]:
     events: list[FoveaEvent] = []
 
@@ -260,6 +282,37 @@ def test_close_during_model_load_releases_camera_and_starts_no_capture(
     assert events == []
     assert camera.disconnect_calls == 1
     assert ScriptedSession.instances == []
+    assert source._session is None
+    assert not _capture_thread_alive()
+
+
+def test_close_during_inference_never_overlaps_estimator_process(monkeypatch, tmp_path) -> None:
+    """An asynchronous ``close()`` must not destroy the backend while ``process()`` runs."""
+    InferringEstimator.process_entered = threading.Event()
+    InferringEstimator.process_may_finish = threading.Event()
+    InferringEstimator.in_process = False
+    InferringEstimator.close_calls = 0
+    InferringEstimator.closed_during_process = False
+    camera = _install(
+        monkeypatch,
+        [CameraActuals(0, "Camera", "stable", 640, 480, 30.0)],
+        [[_frame(), _frame(2)]],
+    )
+    monkeypatch.setattr("fovea.webcam.event_source.FaceLandmarkEstimator", InferringEstimator)
+    source = _source(tmp_path)
+
+    worker, events = _consume_in_thread(source)
+    assert InferringEstimator.process_entered.wait(SAFETY_TIMEOUT_S)
+    source.close()  # quit requested from another thread mid-inference
+    assert InferringEstimator.close_calls == 0
+    InferringEstimator.process_may_finish.set()
+    worker.join(SAFETY_TIMEOUT_S)
+    assert not worker.is_alive()
+
+    assert InferringEstimator.close_calls == 1
+    assert not InferringEstimator.closed_during_process
+    assert isinstance(events[0], CameraReady)
+    assert camera.disconnect_calls == 1
     assert source._session is None
     assert not _capture_thread_alive()
 

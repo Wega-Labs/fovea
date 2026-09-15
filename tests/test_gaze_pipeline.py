@@ -19,6 +19,7 @@ from fovea.webcam.calibration import (
     save_model,
     uncalibrated_map,
 )
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.features import (
     FEATURE_NAMES,
@@ -402,8 +403,8 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
         def __init__(self, *_args, **_kwargs) -> None:
             return None
 
-        def connect(self) -> None:
-            return None
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self):
             if FakeCamera.calls == 0:
@@ -490,8 +491,8 @@ def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:
         def __init__(self, *_args, **_kwargs) -> None:
             return None
 
-        def connect(self) -> None:
-            return None
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self):
             return np.zeros((480, 640, 3), dtype=np.uint8)
@@ -550,8 +551,8 @@ class _FreeRunningCamera:
     def __init__(self, *_args, **_kwargs) -> None:
         return None
 
-    def connect(self) -> None:
-        return None
+    def connect(self) -> CameraActuals:
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def read(self):
         return np.zeros((480, 640, 3), dtype=np.uint8)
