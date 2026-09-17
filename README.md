@@ -224,7 +224,8 @@ tests/
 ├── test_gaze_pipeline.py
 └── test_mediapipe_model.py
 packages/
-└── fovea-client/       # zero-runtime-dependency Node/Electron client
+├── fovea-client/       # zero-runtime-dependency Node/Electron client
+└── fovea-hand/         # browser hand tracking, gestures, and forgiving targeting (@wega-labs/fovea-hand)
 examples/
 └── electron-host/      # overlay, dwell, and host-rendered calibration
 ```
