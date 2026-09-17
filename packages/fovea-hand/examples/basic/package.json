@@ -1,0 +1,16 @@
+{
+  "name": "fovea-hand-basic-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@wega-labs/fovea-hand": "file:../.."
+  },
+  "devDependencies": {
+    "vite": "7.3.5",
+    "typescript": "6.0.3"
+  }
+}
