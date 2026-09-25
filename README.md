@@ -278,6 +278,19 @@ See `models/README.md` for the pinned URL and checksum. The model is cached in t
 user cache directory, and calibration is saved in the platform's user data directory. Set
 `FOVEA_MODEL_PATH` or `FOVEA_DATA_DIR` to override those locations.
 
+Calibrations are grouped into named profiles and stored per display and camera, so moving between
+a laptop panel and an external monitor picks the matching calibration automatically instead of
+recalibrating. Use a profile for conditions the camera cannot detect, such as glasses:
+
+```bash
+fovea calibrate --profile glasses   # calibrate into the "glasses" profile
+fovea profiles use glasses          # make it the default for later runs
+fovea profiles list                 # stored calibrations with their display and camera
+```
+
+`--calibration-path P` (or `GazeSettings.calibration_path`) bypasses profiles. An existing
+`calibration/default.json` keeps working for the `default` profile while it matches.
+
 During calibration, `WebcamEventSource` emits `CalibrationCue` events whose
 `x`/`y` match the active target layout. The default is `CALIBRATION_LAYOUT`;
 NDJSON hosts can supply five or more display-normalized targets with the

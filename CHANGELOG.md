@@ -20,6 +20,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Online self-calibration (protocol `1.3`): the `observe` control,
   `calibration_updated` event, schema-v4 anchor persistence, robust residual
   quarantine, guarded weighted refits, and the `--no-online` runtime switch.
+- Calibration profiles: calibrations are stored per profile and per display/camera identity and
+  auto-selected from `CalibrationIdentity`; `--profile`, `GazeSettings.profile`, and
+  `fovea profiles list|use`. The legacy `calibration/default.json` still loads when it matches.
 
 ### Changed
 
