@@ -10,7 +10,7 @@ import queue
 import signal
 import sys
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from importlib import metadata
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -19,6 +19,7 @@ from typing import NoReturn
 
 from fovea import __version__
 from fovea.benchmark import BenchmarkConfig, run_live_benchmark
+from fovea.config import default_config_path, load_config, render_config, resolve_defaults
 from fovea.interfaces import EventSource
 from fovea.paths import default_model_path
 from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expired_diagnostics
@@ -133,25 +134,42 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
     parser.add_argument("--display-id", metavar="ID")
     parser.add_argument("--display-width", type=_positive_int, default=1280, metavar="W")
     parser.add_argument("--display-height", type=_positive_int, default=720, metavar="H")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        metavar="P",
+        help="TOML file of flag defaults (default: FOVEA_CONFIG or the platform config dir)",
+    )
 
 
-def _build_parser() -> _JsonArgumentParser:
+def _capture_actions() -> list[argparse.Action]:
+    parser = argparse.ArgumentParser(add_help=False)
+    _add_capture_arguments(parser, require_ndjson=False)
+    return parser._actions
+
+
+def _build_parser(config_defaults: Mapping[str, object] | None = None) -> _JsonArgumentParser:
     parser = _JsonArgumentParser(prog="fovea", description="Local webcam gaze event engine")
     commands = parser.add_subparsers(dest="command", required=True)
+    defaults = dict(config_defaults or {})
 
     run = commands.add_parser("run", help="stream gaze events")
     _add_capture_arguments(run, require_ndjson=True)
     run.add_argument("--calibrate", action="store_true")
+    run.set_defaults(**defaults)
 
     calibrate = commands.add_parser("calibrate", help="run the calibration wizard")
     _add_capture_arguments(calibrate, require_ndjson=False)
+    calibrate.set_defaults(**defaults)
 
     test = commands.add_parser("test", help="run the calibrated gaze test")
     _add_capture_arguments(test, require_ndjson=False)
+    test.set_defaults(**defaults)
 
     bench = commands.add_parser("bench", help="run the guided live benchmark")
     _add_capture_arguments(bench, require_ndjson=False)
     bench.set_defaults(diagnostics=True)
+    bench.set_defaults(**defaults)
     bench.add_argument("--screen-width-cm", type=_positive_float, required=True)
     bench.add_argument("--screen-height-cm", type=_positive_float, required=True)
     bench.add_argument("--camera-name", required=True)
@@ -181,7 +199,45 @@ def _build_parser() -> _JsonArgumentParser:
     doctor = commands.add_parser("doctor", help="print environment and camera diagnostics")
     doctor.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
     commands.add_parser("schema", help="print the protocol JSON Schema")
+
+    config = commands.add_parser("config", help="show the capture configuration file")
+    config.add_argument("action", choices=("show", "path"))
+    config.add_argument("--config", type=Path, metavar="P")
     return parser
+
+
+_CONFIGURABLE_COMMANDS = frozenset({"run", "calibrate", "test", "bench"})
+
+
+def _config_path(args: argparse.Namespace) -> Path:
+    explicit: Path | None = args.config
+    return explicit.expanduser() if explicit is not None else default_config_path()
+
+
+def _config_defaults(args: argparse.Namespace) -> dict[str, object]:
+    try:
+        values = load_config(_config_path(args), required=args.config is not None)
+        return resolve_defaults(values, _capture_actions())
+    except ValueError as exc:
+        raise CliUsageError(str(exc)) from exc
+
+
+def _apply_config(argv: list[str] | None, args: argparse.Namespace) -> argparse.Namespace:
+    """Re-parse with config-file values as defaults so explicit flags still win."""
+    if args.command not in _CONFIGURABLE_COMMANDS:
+        return args
+    return _build_parser(_config_defaults(args)).parse_args(argv)
+
+
+def _config_command(args: argparse.Namespace) -> int:
+    if args.action == "path":
+        print(_config_path(args))
+        return 0
+    capture = argparse.ArgumentParser(add_help=False)
+    _add_capture_arguments(capture, require_ndjson=False)
+    capture.set_defaults(**_config_defaults(args))
+    print(render_config(capture.parse_args([]), capture._actions), end="")
+    return 0
 
 
 def _emit_error(message: str) -> None:
@@ -426,7 +482,9 @@ def _benchmark_config(args: argparse.Namespace) -> BenchmarkConfig:
 def main(argv: list[str] | None = None, source_factory: SourceFactory | None = None) -> int:
     """Run the CLI and return a stable process exit code."""
     try:
-        args = _build_parser().parse_args(argv)
+        args = _apply_config(argv, _build_parser().parse_args(argv))
+        if args.command == "config":
+            return _config_command(args)
     except CliUsageError as exc:
         _emit_error(str(exc))
         return 2

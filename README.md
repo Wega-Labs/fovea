@@ -305,6 +305,22 @@ While `fovea run` is active, send one control word per stdin line:
 - `resume` resumes stdout events;
 - `quit` closes the source and exits cleanly.
 
+`run`, `calibrate`, `test`, and `bench` read flag defaults from a TOML file: `--config P`, else
+`FOVEA_CONFIG`, else `config.toml` in the platform config directory (`fovea config path` prints
+it). Keys are the long flag names without dashes, and flags on the command line win:
+
+```toml
+camera = 1
+display-width = 1920
+display-height = 1080
+no-display = true
+diagnostics-retention = "7d"
+```
+
+Values go through the same validation as the flags; an unknown key or invalid value exits `2`.
+`--ndjson` is never read from the file. `fovea config show` prints the effective settings as TOML
+that loads back unchanged.
+
 The process exits `0` on normal completion or signal-driven shutdown, `2` for usage or
 configuration errors, `3` for camera errors, and `4` for model/runtime errors. Fatal errors are a
 single JSON object on stdout so non-Python hosts can parse them consistently.

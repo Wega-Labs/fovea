@@ -20,6 +20,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Online self-calibration (protocol `1.3`): the `observe` control,
   `calibration_updated` event, schema-v4 anchor persistence, robust residual
   quarantine, guarded weighted refits, and the `--no-online` runtime switch.
+- A TOML config file for capture-command flag defaults (`--config`, `FOVEA_CONFIG`, or the
+  platform config directory), validated like the flags, plus `fovea config show|path`.
 
 ### Changed
 
