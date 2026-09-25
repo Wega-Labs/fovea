@@ -20,6 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Online self-calibration (protocol `1.3`): the `observe` control,
   `calibration_updated` event, schema-v4 anchor persistence, robust residual
   quarantine, guarded weighted refits, and the `--no-online` runtime switch.
+- Python runtime adapters: `AsyncEventSource` for `async for` iteration with bounded
+  backpressure and cancellation, `EventPump` for thread-safe `start()`/`stop()` delivery to a
+  sink or callback, context-manager support on `WebcamEventSource` and `ReplayEventSource`, and
+  a `fovea` package logger with a `NullHandler`.
 
 ### Changed
 
