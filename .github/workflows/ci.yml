@@ -52,8 +52,27 @@ jobs:
           uv run python scripts/generate_protocol_schema.py
           git diff --exit-code -- schema/fovea-protocol-v1.json
 
+      - name: Verify generated protocol reference
+        run: |
+          uv run python scripts/generate_protocol_reference.py
+          git diff --exit-code -- docs/reference/protocol-messages.md
+
       - name: Tests
         run: uv run pytest
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with: { python-version: "3.12" }
+
+      - name: Install documentation dependencies
+        run: uv sync --frozen --extra docs
+
+      - name: Build site
+        run: uv run mkdocs build --strict
 
   typescript-client:
     runs-on: ubuntu-latest
