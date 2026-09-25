@@ -256,6 +256,29 @@ for event in source.events():
     print(type(event).__name__, event)
 ```
 
+`events()` blocks the calling thread. Sources are context managers, and `fovea.runtime` runs
+any source on a managed worker thread for asyncio or callback-driven hosts:
+
+```python
+from fovea import AsyncEventSource, EventPump, GazeSettings, WebcamEventSource
+
+
+async def main() -> None:
+    async with AsyncEventSource(WebcamEventSource(GazeSettings())) as source:
+        async for event in source:
+            ...
+
+
+# Or deliver events to a callback or EventSink from a background thread.
+with EventPump(WebcamEventSource(GazeSettings()), handle_event):
+    run_ui()
+```
+
+`AsyncEventSource` applies backpressure through a bounded queue instead of dropping events and
+re-raises a source failure from the `async for`. `EventPump.start()` and `stop()` are thread-safe
+and idempotent; `stop()` re-raises the first source or sink failure. Fovea logs under the `fovea`
+logger and installs only a `NullHandler`, so hosts opt in with standard `logging` configuration.
+
 Download the pinned MediaPipe FaceLandmarker (float16 revision 1) before running
 live webcam mode. The script verifies SHA-256 and refuses a mismatched file.
 

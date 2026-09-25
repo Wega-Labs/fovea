@@ -9,6 +9,8 @@ from collections import deque
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from types import TracebackType
+from typing import Self
 
 from fovea.events import CalibrationWarning, FoveaEvent, GazePoint
 from fovea.webcam.backend import create_landmark_backend
@@ -268,6 +270,17 @@ class WebcamEventSource:
         if self._display is None:
             self._display = CalibrationDisplay(self.display_width, self.display_height)
         self._display.show(self._engine.wizard, self._engine.targets)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def close(self) -> None:
         """Stop capture and landmark inference and release the webcam.

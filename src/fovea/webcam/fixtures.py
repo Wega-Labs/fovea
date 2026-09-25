@@ -7,7 +7,8 @@ import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 
 from fovea.events import FoveaEvent
 from fovea.webcam.camera import Webcam
@@ -209,6 +210,17 @@ class ReplayEventSource:
     ) -> None:
         if self._engine is not None:
             self._engine.observe(x, y, weight, timestamp_ns)
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def close(self) -> None:
         self._closed = True
