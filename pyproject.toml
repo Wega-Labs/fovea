@@ -40,6 +40,11 @@ dev = [
   "pytest>=8.4,<10",
   "ruff>=0.12,<1",
 ]
+docs = [
+  "mkdocs>=1.6,<2",
+  "mkdocs-material>=9.7,<10",
+  "mkdocstrings[python]>=1.0,<2",
+]
 macos = [
   "pyobjc-framework-AVFoundation>=10,<13; sys_platform == 'darwin'",
 ]
