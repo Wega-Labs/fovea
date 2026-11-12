@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="295" height="40" viewBox="0 0 295 40" role="img" aria-label="An ordinary webcam: look to point, blink to select.">
+  <path d="M40 22 C 30 28, 18 26, 8 20" fill="none" stroke="#0EA5E9" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M8 20 l7 -1 M8 20 l3 6" fill="none" stroke="#0EA5E9" stroke-width="1.6" stroke-linecap="round"/>
+  <text x="50" y="17" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#A1A1A1">An ordinary webcam:</text>
+  <text x="50" y="34" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#A1A1A1">look to point, <tspan fill="#0EA5E9">blink to select.</tspan></text>
+</svg>
