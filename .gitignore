@@ -21,3 +21,6 @@ models/*.task
 # October (generated — context bus / browser MCP)
 .cursor/mcp.json
 .cursor/cli.json
+
+# MkDocs build output
+site/
