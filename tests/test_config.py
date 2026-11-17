@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from fovea.cli import _capture_actions, main
+from fovea.cli import _apply_config, _build_parser, _capture_actions, main
 from fovea.config import default_config_path, load_config, render_config, resolve_defaults
 from fovea.events import FoveaEvent
 
@@ -202,3 +202,16 @@ def test_config_path_command(
 
     assert main(["config", "path"]) == 0
     assert capsys.readouterr().out.strip() == str(tmp_path / "x.toml")
+
+
+def test_config_rejects_more_than_one_camera(tmp_path: Path) -> None:
+    config = write(tmp_path / "c.toml", 'camera = 1\ncamera-name = "Studio Display"\n')
+    assert main(["config", "show", "--config", str(config)]) == 2
+
+
+def test_command_line_camera_replaces_config_camera(tmp_path: Path) -> None:
+    config = write(tmp_path / "c.toml", 'camera-name = "Studio Display"\n')
+    argv = ["run", "--ndjson", "--config", str(config), "--camera", "2"]
+    args = _apply_config(argv, _build_parser().parse_args(argv))
+    assert args.camera == 2
+    assert args.camera_name is None
