@@ -11,6 +11,7 @@ import signal
 import sys
 import threading
 from collections.abc import Callable
+from dataclasses import asdict
 from importlib import metadata
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,7 +38,12 @@ from fovea.protocol import (
 from fovea.serialize import to_json
 from fovea.webcam.backend import BACKEND_NAMES, backend_available
 from fovea.webcam.calibration import CalibrationTarget
-from fovea.webcam.camera import CameraError
+from fovea.webcam.camera import (
+    CameraEnumerationUnavailable,
+    CameraError,
+    CameraSelector,
+    enumerate_cameras,
+)
 from fovea.webcam.engine import GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
 from fovea.webcam.fixtures import ReplayEventSource, record_landmarks
@@ -105,9 +111,15 @@ def _retention_seconds(value: str) -> float:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
+def _add_camera_arguments(parser: argparse.ArgumentParser) -> None:
+    cameras = parser.add_mutually_exclusive_group()
+    cameras.add_argument("--camera", type=_nonnegative_int, metavar="N")
+    cameras.add_argument("--camera-name", metavar="TEXT")
+    cameras.add_argument("--camera-id", metavar="ID")
+
+
 def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: bool) -> None:
     parser.add_argument("--ndjson", action="store_true", required=require_ndjson)
-    parser.add_argument("--camera", type=_nonnegative_int, default=0, metavar="N")
     parser.add_argument("--width", type=_positive_int, default=640, metavar="W")
     parser.add_argument("--height", type=_positive_int, default=480, metavar="H")
     parser.add_argument("--no-display", action="store_true")
@@ -122,6 +134,13 @@ def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: b
         metavar="N",
         help="process at most N frames per second; extra frames are skipped before inference",
     )
+    parser.add_argument(
+        "--capture-fps",
+        type=_positive_float,
+        metavar="N",
+        help="request N frames per second from the camera",
+    )
+    parser.add_argument("--reconnect", action="store_true")
     parser.add_argument("--diagnostics", action="store_true")
     parser.add_argument(
         "--diagnostics-retention",
@@ -140,17 +159,21 @@ def _build_parser() -> _JsonArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run", help="stream gaze events")
+    _add_camera_arguments(run)
     _add_capture_arguments(run, require_ndjson=True)
     run.add_argument("--calibrate", action="store_true")
 
     calibrate = commands.add_parser("calibrate", help="run the calibration wizard")
+    _add_camera_arguments(calibrate)
     _add_capture_arguments(calibrate, require_ndjson=False)
 
     test = commands.add_parser("test", help="run the calibrated gaze test")
+    _add_camera_arguments(test)
     _add_capture_arguments(test, require_ndjson=False)
 
     bench = commands.add_parser("bench", help="run the guided live benchmark")
     _add_capture_arguments(bench, require_ndjson=False)
+    bench.add_argument("--camera", type=_nonnegative_int, default=0, metavar="N")
     bench.set_defaults(diagnostics=True)
     bench.add_argument("--screen-width-cm", type=_positive_float, required=True)
     bench.add_argument("--screen-height-cm", type=_positive_float, required=True)
@@ -165,9 +188,9 @@ def _build_parser() -> _JsonArgumentParser:
     bench.add_argument("--yes", action="store_true", help="skip phase confirmation prompts")
 
     record = commands.add_parser("record", help="record privacy-safe landmark frames")
+    _add_camera_arguments(record)
     record.add_argument("--landmarks", type=Path, required=True, metavar="PATH")
     record.add_argument("--seconds", type=_positive_float, default=10.0, metavar="N")
-    record.add_argument("--camera", type=_nonnegative_int, default=0, metavar="N")
     record.add_argument("--width", type=_positive_int, default=640, metavar="W")
     record.add_argument("--height", type=_positive_int, default=480, metavar="H")
     record.add_argument("--model", type=Path, metavar="P")
@@ -180,6 +203,7 @@ def _build_parser() -> _JsonArgumentParser:
 
     doctor = commands.add_parser("doctor", help="print environment and camera diagnostics")
     doctor.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
+    doctor.add_argument("--cameras", action="store_true")
     commands.add_parser("schema", help="print the protocol JSON Schema")
     return parser
 
@@ -193,12 +217,16 @@ def _emit_error(message: str) -> None:
     )
 
 
-def _read_stdin(commands: queue.Queue[Command]) -> None:
+def _read_stdin(commands: queue.Queue[Command], request_stop: Callable[[], None]) -> None:
     for line in sys.stdin:
         if not line.strip():
             continue
         try:
-            commands.put(parse_command_line(line))
+            command = parse_command_line(line)
+            if isinstance(command, QuitCommand):
+                request_stop()
+            else:
+                commands.put(command)
         except ProtocolError as exc:
             print(f"Ignoring invalid control command: {exc}", file=sys.stderr, flush=True)
 
@@ -273,11 +301,20 @@ def _close_source(source: EventSource) -> None:
 def _stream(source: EventSource, backend: str = "mediapipe") -> int:
     print(hello_json(backend), flush=True)
     commands: queue.Queue[Command] = queue.Queue()
-    reader = threading.Thread(target=_read_stdin, args=(commands,), daemon=True)
-    reader.start()
+    stop_requested = threading.Event()
+    stop_lock = threading.Lock()
 
-    def request_stop(_signum: int, _frame: FrameType | None) -> None:
-        commands.put(QuitCommand())
+    def request_stop(_signum: int = 0, _frame: FrameType | None = None) -> None:
+        del _signum, _frame
+        with stop_lock:
+            if stop_requested.is_set():
+                return
+            stop_requested.set()
+            commands.put(QuitCommand())
+            threading.Thread(target=_close_source, args=(source,), daemon=True).start()
+
+    reader = threading.Thread(target=_read_stdin, args=(commands, request_stop), daemon=True)
+    reader.start()
 
     previous_handlers: dict[signal.Signals, SignalHandler] = {}
     if threading.current_thread() is threading.main_thread():
@@ -313,16 +350,21 @@ def _settings(args: argparse.Namespace) -> GazeSettings:
 
 
 def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSource:
+    selector = _camera_selector(args)
     return factory(
         settings=_settings(args),
         project_root=None,
-        device_index=args.camera,
+        device_index=selector.index,
+        camera_name=selector.name,
+        camera_id=selector.unique_id,
         width=args.width,
         height=args.height,
         backend=args.backend,
         model_path=args.model,
         max_frames=args.max_frames,
         max_fps=args.fps,
+        capture_fps=args.capture_fps,
+        reconnect=args.reconnect,
         force_calibrate=(args.command == "calibrate" or bool(getattr(args, "calibrate", False))),
         force_test=args.command == "test",
         show_calibration=not args.no_display,
@@ -331,6 +373,16 @@ def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSourc
         display_width=args.display_width,
         display_height=args.display_height,
     )
+
+
+def _camera_selector(args: argparse.Namespace) -> CameraSelector:
+    if args.command == "bench":
+        return CameraSelector(index=args.camera)
+    if getattr(args, "camera_name", None) is not None:
+        return CameraSelector(name=args.camera_name)
+    if getattr(args, "camera_id", None) is not None:
+        return CameraSelector(unique_id=args.camera_id)
+    return CameraSelector(index=args.camera if args.camera is not None else 0)
 
 
 def _camera_count(limit: int = 5) -> int:
@@ -394,6 +446,11 @@ def _doctor(backend: str = "mediapipe") -> int:
     return 0
 
 
+def _doctor_cameras() -> int:
+    print(json.dumps([asdict(camera) for camera in enumerate_cameras()], indent=2))
+    return 0
+
+
 def _benchmark_prompt(message: str, *, assume_yes: bool) -> None:
     print(message, file=sys.stderr, flush=True)
     if assume_yes:
@@ -432,6 +489,12 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
         return 2
 
     if args.command == "doctor":
+        if args.cameras:
+            try:
+                return _doctor_cameras()
+            except CameraEnumerationUnavailable as exc:
+                _emit_error(str(exc))
+                return 3
         return _doctor(args.backend)
     if args.command == "schema":
         print(protocol_schema_text(), end="")
@@ -444,7 +507,7 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
             frames = record_landmarks(
                 args.landmarks,
                 seconds=args.seconds,
-                device_index=args.camera,
+                device_index=_camera_selector(args),
                 width=args.width,
                 height=args.height,
                 model_path=args.model,

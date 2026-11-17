@@ -19,6 +19,7 @@ from fovea.webcam.calibration import (
     save_model,
     uncalibrated_map,
 )
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.features import (
     FEATURE_NAMES,
@@ -307,6 +308,20 @@ def test_calibration_identity_roundtrip_and_mismatch(tmp_path) -> None:
     assert load_model(path, expect=other_display) is None
 
 
+def test_calibration_identity_legacy_camera_matching_is_asymmetric() -> None:
+    legacy_data = CalibrationIdentity(None, 1280, 720, 2, 640, 480).to_dict()
+    legacy_data.pop("camera_id")
+    legacy = CalibrationIdentity.from_dict(legacy_data)
+    assert legacy == CalibrationIdentity(None, 1280, 720, 2, 640, 480)
+    assert legacy is not None
+    assert legacy.matches(CalibrationIdentity(None, 1280, 720, 2, 640, 480, "current"))
+    assert not legacy.matches(CalibrationIdentity(None, 1280, 720, 3, 640, 480, "current"))
+
+    identified = CalibrationIdentity(None, 1280, 720, 2, 640, 480, "stable")
+    assert identified.matches(CalibrationIdentity(None, 1280, 720, 9, 640, 480, "stable"))
+    assert not identified.matches(CalibrationIdentity(None, 1280, 720, 2, 640, 480))
+
+
 def test_uncalibrated_look_down_moves_toward_bottom() -> None:
     _sx, sy = uncalibrated_map(_features(0.5, 0.55, blend_y=0.55))
     assert sy > 0.65
@@ -388,8 +403,8 @@ def test_webcam_event_source_yields_typed_events(monkeypatch, tmp_path) -> None:
         def __init__(self, *_args, **_kwargs) -> None:
             return None
 
-        def connect(self) -> None:
-            return None
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self):
             if FakeCamera.calls == 0:
@@ -476,8 +491,8 @@ def test_calibration_emits_layout_cue(monkeypatch, tmp_path) -> None:
         def __init__(self, *_args, **_kwargs) -> None:
             return None
 
-        def connect(self) -> None:
-            return None
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self):
             return np.zeros((480, 640, 3), dtype=np.uint8)
@@ -536,8 +551,8 @@ class _FreeRunningCamera:
     def __init__(self, *_args, **_kwargs) -> None:
         return None
 
-    def connect(self) -> None:
-        return None
+    def connect(self) -> CameraActuals:
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def read(self):
         return np.zeros((480, 640, 3), dtype=np.uint8)
@@ -547,7 +562,7 @@ class _FreeRunningCamera:
 
 
 def test_webcam_gaze_points_carry_capture_to_emit_latency(monkeypatch, tmp_path) -> None:
-    from fovea.events import Diagnostics, GazePoint, TrackingState
+    from fovea.events import CameraReady, Diagnostics, GazePoint, TrackingState
     from fovea.webcam.event_source import WebcamEventSource
 
     face = _face_with_iris()
@@ -584,7 +599,12 @@ def test_webcam_gaze_points_carry_capture_to_emit_latency(monkeypatch, tmp_path)
     assert diagnostics[0].latency_p95_ms is None
     assert isinstance(diagnostics[0].dropped_frames, int)
     assert diagnostics[0].dropped_frames >= 0
-    assert [type(event) for event in events[:3]] == [TrackingState, Diagnostics, GazePoint]
+    assert [type(event) for event in events[:4]] == [
+        CameraReady,
+        TrackingState,
+        Diagnostics,
+        GazePoint,
+    ]
 
 
 class _ValidGazeEngine:

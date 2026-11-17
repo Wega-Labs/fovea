@@ -113,6 +113,27 @@ export interface TrackingState {
   readonly detail?: string;
 }
 
+export interface CameraReady {
+  readonly type: "camera_ready";
+  readonly name: string;
+  readonly unique_id: string | null;
+  readonly index: number;
+  readonly width: number;
+  readonly height: number;
+  readonly fps: number | null;
+  readonly timestamp_ns: number;
+}
+
+export interface CameraLost {
+  readonly type: "camera_lost";
+  readonly name: string;
+  readonly unique_id: string | null;
+  readonly index: number;
+  readonly reason: "read_failed" | "read_error";
+  readonly reconnecting: boolean;
+  readonly timestamp_ns: number;
+}
+
 export interface CalibrationCue {
   readonly type: "calibration_cue";
   readonly label: string;
@@ -242,6 +263,8 @@ export type FoveaEvent =
   | Gesture
   | Manipulation
   | TrackingState
+  | CameraReady
+  | CameraLost
   | CalibrationCue
   | CalibrationWarning
   | CalibrationDone
@@ -273,6 +296,8 @@ export const FOVEA_EVENT_TYPES = [
   "gesture",
   "manipulation",
   "tracking_state",
+  "camera_ready",
+  "camera_lost",
   "calibration_cue",
   "calibration_warning",
   "calibration_done",

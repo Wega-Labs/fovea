@@ -53,6 +53,7 @@ def test_hello_declares_protocol_backend_and_safety_requirement() -> None:
             "wink",
             "double_blink",
             "long_blink",
+            "camera_lifecycle",
         ],
     }
 
@@ -205,10 +206,17 @@ def test_committed_schema_matches_dataclasses() -> None:
     for optional_field in ("latency_p50_ms", "latency_p95_ms", "dropped_frames"):
         assert optional_field in diagnostics_schema["properties"]
         assert optional_field not in diagnostics_schema["required"]
+    assert definitions["camera_ready"]["properties"]["fps"]["anyOf"] == [
+        {"type": "number"},
+        {"type": "null"},
+    ]
+    assert definitions["camera_lost"]["properties"]["reason"] == {
+        "enum": ["read_failed", "read_error"]
+    }
 
 
 def test_protocol_minor_bump_keeps_major_one() -> None:
-    assert PROTOCOL_VERSION == "1.3"
+    assert PROTOCOL_VERSION == "1.5"
     assert PROTOCOL_VERSION.split(".", 1)[0] == "1"
 
 
