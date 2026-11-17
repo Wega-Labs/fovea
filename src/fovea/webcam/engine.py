@@ -14,6 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from fovea.paths import default_calibration_path
+from fovea.profiles import resolve_calibration_path
 from fovea.util import ScreenPoint, clamp01
 from fovea.webcam.calibration import (
     CALIBRATION_LAYOUT,
@@ -68,6 +69,8 @@ class GazeSettings:
     min_good_samples: int = 12
     settle_frames: int = 12
     calibration_path: str | Path | None = None
+    # Calibration profile name; None uses the active profile. Ignored with calibration_path.
+    profile: str | None = None
     debug: bool = True
     online_calibration: bool = True
     saccade_velocity: float = 1.5
@@ -152,7 +155,9 @@ class GazeEngine:
         self.settings = settings
         self.identity = identity
         del project_root
-        if settings.calibration_path is None:
+        if settings.calibration_path is None and identity is not None:
+            self.path = resolve_calibration_path(settings.profile, identity)
+        elif settings.calibration_path is None:
             self.path = default_calibration_path()
         else:
             self.path = Path(settings.calibration_path).expanduser()

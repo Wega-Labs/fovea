@@ -31,6 +31,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a `fovea` package logger with a `NullHandler`.
 - A TOML config file for capture-command flag defaults (`--config`, `FOVEA_CONFIG`, or the
   platform config directory), validated like the flags, plus `fovea config show|path`.
+- Calibration profiles: calibrations are stored per profile and per display/camera identity and
+  auto-selected from `CalibrationIdentity`; `--profile`, `GazeSettings.profile`, and
+  `fovea profiles list|use`. The legacy `calibration/default.json` still loads when it matches.
 
 ### Changed
 

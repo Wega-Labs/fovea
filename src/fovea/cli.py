@@ -24,6 +24,12 @@ from fovea.config import default_config_path, load_config, render_config, resolv
 from fovea.interfaces import EventSource
 from fovea.paths import default_model_path
 from fovea.privacy import default_diagnostics_dir, parse_retention, purge_expired_diagnostics
+from fovea.profiles import (
+    active_profile,
+    list_calibrations,
+    set_active_profile,
+    validate_profile_name,
+)
 from fovea.protocol import (
     CalibrateCommand,
     Command,
@@ -119,13 +125,27 @@ def _add_camera_arguments(parser: argparse.ArgumentParser) -> None:
     cameras.add_argument("--camera-id", metavar="ID")
 
 
+def _profile_name(value: str) -> str:
+    try:
+        return validate_profile_name(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def _add_capture_arguments(parser: argparse.ArgumentParser, *, require_ndjson: bool) -> None:
     parser.add_argument("--ndjson", action="store_true", required=require_ndjson)
     parser.add_argument("--width", type=_positive_int, default=640, metavar="W")
     parser.add_argument("--height", type=_positive_int, default=480, metavar="H")
     parser.add_argument("--no-display", action="store_true")
     parser.add_argument("--no-online", action="store_true")
-    parser.add_argument("--calibration-path", type=Path, metavar="P")
+    calibration = parser.add_mutually_exclusive_group()
+    calibration.add_argument("--calibration-path", type=Path, metavar="P")
+    calibration.add_argument(
+        "--profile",
+        type=_profile_name,
+        metavar="NAME",
+        help="calibration profile (default: the one chosen with 'fovea profiles use')",
+    )
     parser.add_argument("--model", type=Path, metavar="P")
     parser.add_argument("--backend", choices=BACKEND_NAMES, default="mediapipe")
     parser.add_argument("--max-frames", type=_positive_int, metavar="N")
@@ -228,6 +248,12 @@ def _build_parser(config_defaults: Mapping[str, object] | None = None) -> _JsonA
     config = commands.add_parser("config", help="show the capture configuration file")
     config.add_argument("action", choices=("show", "path"))
     config.add_argument("--config", type=Path, metavar="P")
+
+    profiles = commands.add_parser("profiles", help="list or choose calibration profiles")
+    profile_actions = profiles.add_subparsers(dest="profiles_action", required=True)
+    profile_actions.add_parser("list", help="list stored calibrations by profile")
+    use = profile_actions.add_parser("use", help="make a profile the default")
+    use.add_argument("name", type=_profile_name)
     return parser
 
 
@@ -422,10 +448,33 @@ def _stream(source: EventSource, backend: str = "mediapipe") -> int:
 
 
 def _settings(args: argparse.Namespace) -> GazeSettings:
-    settings = GazeSettings(online_calibration=not args.no_online)
+    settings = GazeSettings(online_calibration=not args.no_online, profile=args.profile)
     if args.calibration_path is not None:
         settings.calibration_path = args.calibration_path
     return settings
+
+
+def _profiles_command(args: argparse.Namespace) -> int:
+    if args.profiles_action == "use":
+        set_active_profile(args.name)
+        print(f"active_profile={args.name}")
+        return 0
+    active = active_profile()
+    print(f"active_profile={active}")
+    for entry in list_calibrations():
+        identity = entry.identity
+        if identity is None:
+            described = "identity=unlabeled"
+        else:
+            described = (
+                f"display={identity.display_width}x{identity.display_height}"
+                f" display_id={identity.display_id or '-'}"
+                f" camera={identity.camera_index}"
+                f" frame={identity.frame_width}x{identity.frame_height}"
+            )
+        updated = entry.updated.strftime("%Y-%m-%dT%H:%M:%SZ")
+        print(f"profile={entry.profile} {described} updated={updated} path={entry.path}")
+    return 0
 
 
 def _make_source(args: argparse.Namespace, factory: SourceFactory) -> EventSource:
@@ -577,6 +626,8 @@ def main(argv: list[str] | None = None, source_factory: SourceFactory | None = N
                 _emit_error(str(exc))
                 return 3
         return _doctor(args.backend)
+    if args.command == "profiles":
+        return _profiles_command(args)
     if args.command == "schema":
         print(protocol_schema_text(), end="")
         return 0
