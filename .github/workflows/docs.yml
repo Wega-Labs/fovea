@@ -1,0 +1,47 @@
+name: Docs
+
+# Publishes the MkDocs site to GitHub Pages from main. Pull requests are covered by the
+# `docs` job in ci.yml, which builds the same site with --strict without deploying it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with: { python-version: "3.12" }
+
+      - name: Install documentation dependencies
+        run: uv sync --frozen --extra docs
+
+      - name: Build site
+        run: uv run mkdocs build --strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

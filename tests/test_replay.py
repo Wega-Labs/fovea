@@ -13,6 +13,7 @@ from fovea.cli import main
 from fovea.events import Blink, Fixation, GazePoint, TrackingState
 from fovea.serialize import to_json
 from fovea.webcam.calibration import CALIBRATION_LAYOUT, load_model
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.engine import GazeSettings
 from fovea.webcam.features import extract_features
 from fovea.webcam.fixtures import (
@@ -160,8 +161,8 @@ def test_record_writes_landmarks_without_pixels(monkeypatch, tmp_path) -> None:
         def __init__(self, *_args, **_kwargs) -> None:
             pass
 
-        def connect(self) -> None:
-            pass
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self) -> np.ndarray:
             return np.zeros((480, 640, 3), dtype=np.uint8)

@@ -20,6 +20,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Online self-calibration (protocol `1.3`): the `observe` control,
   `calibration_updated` event, schema-v4 anchor persistence, robust residual
   quarantine, guarded weighted refits, and the `--no-online` runtime switch.
+- Stable camera enumeration and selection (protocol `1.4`) on macOS and Linux, negotiated
+  `CameraReady` identity/geometry events, `doctor --cameras`, and `--capture-fps`.
+- Camera lifecycle recovery (protocol `1.5`): `CameraLost`, same-device exponential-backoff
+  `--reconnect` that follows a stable camera id across backend index reassignment, and
+  interruptible shutdown while opening or waiting to reopen.
+- Python runtime adapters: `AsyncEventSource` for `async for` iteration with bounded
+  backpressure and cancellation, `EventPump` for thread-safe `start()`/`stop()` delivery to a
+  sink or callback, context-manager support on `WebcamEventSource` and `ReplayEventSource`, and
+  a `fovea` package logger with a `NullHandler`.
+- A TOML config file for capture-command flag defaults (`--config`, `FOVEA_CONFIG`, or the
+  platform config directory), validated like the flags, plus `fovea config show|path`.
 - Calibration profiles: calibrations are stored per profile and per display/camera identity and
   auto-selected from `CalibrationIdentity`; `--profile`, `GazeSettings.profile`, and
   `fovea profiles list|use`. The legacy `calibration/default.json` still loads when it matches.
@@ -31,6 +42,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Corrected the head-pose pitch convention and uncalibrated vertical mapping.
 - Webcam capture and fixture replay now share one per-frame event processor, so `fovea replay`
   emits the same fixations, measured blink durations, target events, and reports as live capture.
+- Calibration identity prefers a saved stable camera id and falls back to the legacy camera
+  index only for calibration files that do not contain an id.
 
 ### Fixed
 

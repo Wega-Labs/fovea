@@ -27,6 +27,7 @@ from fovea.events import (
     Wink,
 )
 from fovea.webcam.calibration import CalibrationIdentity, fit_ridge, save_model
+from fovea.webcam.camera import CameraActuals
 from fovea.webcam.engine import GazeEngine, GazeSettings
 from fovea.webcam.event_source import WebcamEventSource
 from fovea.webcam.features import LEFT_IRIS_RING
@@ -153,8 +154,8 @@ class _FakeCamera:
     def __init__(self, *_args: object, **_kwargs: object) -> None:
         return None
 
-    def connect(self) -> None:
-        return None
+    def connect(self) -> CameraActuals:
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def read(self) -> np.ndarray:
         return np.zeros((480, 640, 3), dtype=np.uint8)
@@ -209,10 +210,16 @@ def test_webcam_source_delegates_target_replacement_to_the_processor(
     )
     source.set_targets((TargetRect("button", 0.4, 0.4, 0.2, 0.2),))
     iterator = source.events()
-    first_frame = [next(iterator) for _ in range(4)]
-    assert _names(first_frame) == ["TrackingState", "GazePoint", "TargetEnter", "DwellProgress"]
-    assert isinstance(first_frame[1], GazePoint)
-    assert first_frame[1].target_id == "button"
+    first_frame = [next(iterator) for _ in range(5)]
+    assert _names(first_frame) == [
+        "CameraReady",
+        "TrackingState",
+        "GazePoint",
+        "TargetEnter",
+        "DwellProgress",
+    ]
+    assert isinstance(first_frame[2], GazePoint)
+    assert first_frame[2].target_id == "button"
 
     source.set_targets((TargetRect("button", 0.45, 0.4, 0.2, 0.2),))
     rest = list(iterator)
@@ -238,8 +245,8 @@ def test_webcam_source_keeps_diagnostics_after_tracking_state(
         diagnostics=True,
     )
     events = list(source.events())
-    assert _names(events[:3]) == ["TrackingState", "Diagnostics", "GazePoint"]
-    assert _names(events[3:]) == ["TrackingState", "GazePoint"]
+    assert _names(events[:4]) == ["CameraReady", "TrackingState", "Diagnostics", "GazePoint"]
+    assert _names(events[4:]) == ["TrackingState", "GazePoint"]
     assert all(not event.pursuit for event in events if isinstance(event, GazePoint))
 
 
