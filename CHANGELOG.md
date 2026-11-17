@@ -29,6 +29,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   backpressure and cancellation, `EventPump` for thread-safe `start()`/`stop()` delivery to a
   sink or callback, context-manager support on `WebcamEventSource` and `ReplayEventSource`, and
   a `fovea` package logger with a `NullHandler`.
+- A TOML config file for capture-command flag defaults (`--config`, `FOVEA_CONFIG`, or the
+  platform config directory), validated like the flags, plus `fovea config show|path`.
 
 ### Changed
 
