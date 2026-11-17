@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from fovea.events import TrackingState
-from fovea.webcam.camera import CameraError
+from fovea.webcam.camera import CameraActuals, CameraError
 from fovea.webcam.capture import (
     CaptureClosed,
     CapturedFrame,
@@ -51,8 +51,9 @@ class GatedCamera:
         self.disconnect_calls = 0
         self.disconnected_during_read = False
 
-    def connect(self) -> None:
+    def connect(self) -> CameraActuals:
         self.connected = True
+        return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
     def release(self, count: int = 1) -> None:
         for _ in range(count):
@@ -500,8 +501,8 @@ def test_max_frames_counts_processed_iterations_not_camera_reads(monkeypatch, tm
         def __init__(self, *_args, **_kwargs) -> None:
             self.reads = 0
 
-        def connect(self) -> None:
-            return None
+        def connect(self) -> CameraActuals:
+            return CameraActuals(0, "Fake Camera", None, 640, 480, None)
 
         def read(self):
             self.reads += 1
