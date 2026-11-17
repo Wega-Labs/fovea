@@ -1,5 +1,7 @@
 """Fovea's public event API."""
 
+import logging
+
 from fovea.events import (
     Blink,
     CalibrationCue,
@@ -30,6 +32,7 @@ from fovea.events import (
     Wink,
 )
 from fovea.interfaces import EventSink, EventSource
+from fovea.runtime import AsyncEventSource, ClosableEventSource, EventPump
 from fovea.webcam import (
     GazeEngine,
     GazeSettings,
@@ -40,7 +43,11 @@ from fovea.webcam import (
     WebcamEventSource,
 )
 
+# A library logs but never configures output; hosts opt in via logging.getLogger("fovea").
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
 __all__ = [
+    "AsyncEventSource",
     "Blink",
     "CalibrationCue",
     "CalibrationDone",
@@ -48,10 +55,12 @@ __all__ = [
     "CalibrationWarning",
     "CameraLost",
     "CameraReady",
+    "ClosableEventSource",
     "Diagnostics",
     "DoubleBlink",
     "Dwell",
     "DwellProgress",
+    "EventPump",
     "EventSink",
     "EventSource",
     "Eye",

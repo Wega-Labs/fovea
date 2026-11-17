@@ -25,6 +25,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Camera lifecycle recovery (protocol `1.5`): `CameraLost`, same-device exponential-backoff
   `--reconnect` that follows a stable camera id across backend index reassignment, and
   interruptible shutdown while opening or waiting to reopen.
+- Python runtime adapters: `AsyncEventSource` for `async for` iteration with bounded
+  backpressure and cancellation, `EventPump` for thread-safe `start()`/`stop()` delivery to a
+  sink or callback, context-manager support on `WebcamEventSource` and `ReplayEventSource`, and
+  a `fovea` package logger with a `NullHandler`.
 
 ### Changed
 
