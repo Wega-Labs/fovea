@@ -20,6 +20,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Online self-calibration (protocol `1.3`): the `observe` control,
   `calibration_updated` event, schema-v4 anchor persistence, robust residual
   quarantine, guarded weighted refits, and the `--no-online` runtime switch.
+- `@wega-labs/fovea-hand` (`packages/fovea-hand`): a browser hand-input package with local
+  MediaPipe tracking in a module worker, One Euro smoothing, pinch/curl/pan/snap gestures,
+  forgiving dwell targeting, reach calibration, and skeleton drawing, relocated from October
+  Desktop with its core-boundary check and pack-and-consume smoke test.
 
 ### Changed
 

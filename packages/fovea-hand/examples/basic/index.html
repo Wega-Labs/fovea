@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hand Control · standalone example</title>
+    <style>
+      body {
+        font: 16px/1.5 system-ui;
+        max-width: 720px;
+        margin: 32px auto;
+        padding: 16px;
+        color: #e9edf5;
+        background: #151821;
+      }
+      button {
+        font: inherit;
+        min-height: 48px;
+        padding: 12px 24px;
+        border-radius: 12px;
+        border: 1px solid #69738a;
+        background: #242c3a;
+        color: inherit;
+        cursor: pointer;
+      }
+      .targets {
+        display: flex;
+        gap: 48px;
+        flex-wrap: wrap;
+        margin: 40px 0;
+      }
+      canvas {
+        display: block;
+        width: 280px;
+        max-width: 100%;
+        background: #111620;
+        border-radius: 12px;
+      }
+      #aim {
+        position: fixed;
+        pointer-events: none;
+        border: 3px solid #8fb5ff;
+        border-radius: 12px;
+        display: none;
+      }
+      #progress {
+        height: 4px;
+        background: #8fb5ff;
+        position: absolute;
+        bottom: -8px;
+        left: 0;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hand Control</h1>
+    <p>A standalone browser host. Point near a target and pause to select it.</p>
+    <button id="camera">Start camera</button>
+    <div class="targets">
+      <button data-hand="alpha">Alpha</button><button data-hand="beta">Beta</button
+      ><button data-hand="gamma">Gamma</button>
+    </div>
+    <p id="status" role="status">Camera off</p>
+    <canvas id="skeleton" width="560" height="420" aria-label="Live hand skeleton"></canvas>
+    <div id="aim" aria-hidden="true"><div id="progress"></div></div>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

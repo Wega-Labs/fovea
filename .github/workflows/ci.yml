@@ -77,3 +77,29 @@ jobs:
 
       - name: Build client
         run: npm run build --prefix packages/fovea-client
+
+  hand-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      - name: Install hand package development dependencies
+        run: npm install --prefix packages/fovea-hand --no-audit --no-fund
+
+      - name: Enforce hand core boundary
+        run: npm run check:core --prefix packages/fovea-hand
+
+      - name: Lint hand package
+        run: npm run lint --prefix packages/fovea-hand
+
+      - name: Test hand package
+        run: npm test --prefix packages/fovea-hand
+
+      - name: Build hand package
+        run: npm run build --prefix packages/fovea-hand
+
+      - name: Smoke the packed hand package in an external host
+        run: npm run smoke --prefix packages/fovea-hand

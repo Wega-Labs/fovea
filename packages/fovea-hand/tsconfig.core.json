@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": [],
+    "skipLibCheck": false,
+    "noEmit": true
+  },
+  "include": [],
+  "files": ["src/index.ts"]
+}
