@@ -1,12 +1,26 @@
-```text
- _____ _____     _______    _
-|  ___/ _ \ \   / / ____|  / \
-| |_ | | | \ \ / /|  _|   / _ \
-|  _|| |_| |\ V / | |___ / ___ \
-|_|   \___/  \_/  |_____/_/   \_\
-```
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/header/logo-dark.svg">
+    <img src="assets/header/logo-light.svg" alt="fovea" width="560">
+  </picture>
+  <br>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/header/tagline-dark.svg">
+    <img src="assets/header/tagline-light.svg" alt="Your gaze is an input." width="520">
+  </picture>
+</div>
 
-# Fovea
+---
+
+<p>
+  <a href="#why-fovea"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/header/button-why-dark.svg"><img src="assets/header/button-why-light.svg" alt="Why Fovea" height="40" align="top"></picture></a>
+  <a href="#gaze--gesture"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/header/button-gesture-dark.svg"><img src="assets/header/button-gesture-light.svg" alt="Gaze + gesture" height="40" align="top"></picture></a>
+  <a href="#development"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/header/button-dev-dark.svg"><img src="assets/header/button-dev-light.svg" alt="Develop" height="40" align="top"></picture></a>
+  <a href="#privacy-and-safety"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/header/button-privacy-dark.svg"><img src="assets/header/button-privacy-light.svg" alt="Privacy" height="40" align="top"></picture></a>
+  <a href="#interaction-model"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/header/callout-dark.svg"><img src="assets/header/callout-light.svg" alt="An ordinary webcam: look to point, blink to select." height="40" align="top"></picture></a>
+</p>
+
+---
 
 **Your gaze is an input.**
 
