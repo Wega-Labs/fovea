@@ -177,6 +177,35 @@ A change in the engine's tracking status.
 | `timestamp_ns` | integer | yes |
 | `detail` | string | no |
 
+### `camera_ready`
+
+An opened camera and its negotiated capture properties.
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `type` | `"camera_ready"` | yes |
+| `name` | string | yes |
+| `unique_id` | string or null | yes |
+| `index` | integer | yes |
+| `width` | integer | yes |
+| `height` | integer | yes |
+| `fps` | number or null | yes |
+| `timestamp_ns` | integer | yes |
+
+### `camera_lost`
+
+A camera outage that ends the stream or starts reconnect backoff.
+
+| Field | Type | Required |
+| --- | --- | --- |
+| `type` | `"camera_lost"` | yes |
+| `name` | string | yes |
+| `unique_id` | string or null | yes |
+| `index` | integer | yes |
+| `reason` | `"read_failed"` \| `"read_error"` | yes |
+| `reconnecting` | boolean | yes |
+| `timestamp_ns` | integer | yes |
+
 ### `calibration_cue`
 
 The calibration target the user should look at right now.
